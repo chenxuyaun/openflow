@@ -1,0 +1,68 @@
+[
+  {
+    "knowledge_id": "ki-001",
+    "title": "Current repository skeleton",
+    "source_type": "repo",
+    "source_ref": "src/openflow",
+    "summary": "The repository currently contains a FastAPI scaffold, core models, and tests.",
+    "themes": ["execution_tracking", "product_narrative"],
+    "reliability": "high",
+    "relevance": "high",
+    "open_questions": ["How should persistent storage be introduced in milestone 2?"]
+  },
+  {
+    "knowledge_id": "ki-002",
+    "title": "Role sessions must be isolated",
+    "source_type": "chat",
+    "source_ref": "conversation-history",
+    "summary": "Each role should start a new session and reconstruct context from files.",
+    "themes": ["session_isolation", "role_orchestration"],
+    "reliability": "high",
+    "relevance": "high",
+    "open_questions": ["Which files should every session read by default?"]
+  },
+  {
+    "knowledge_id": "ki-003",
+    "title": "First research pass must be full-spectrum",
+    "source_type": "chat",
+    "source_ref": "conversation-history",
+    "summary": "The first research round must include internal materials, git history, competitors, and methodology.",
+    "themes": ["knowledge_indexing", "product_narrative"],
+    "reliability": "high",
+    "relevance": "high",
+    "open_questions": ["How should external references be normalized into project files?"]
+  },
+  {
+    "knowledge_id": "ki-004",
+    "title": "Git history should become a first-class project source",
+    "source_type": "git",
+    "source_ref": "git-log",
+    "summary": "Project evolution, milestone intent, and implementation evidence should be captured from git history.",
+    "themes": ["execution_tracking", "knowledge_indexing"],
+    "reliability": "medium",
+    "relevance": "high",
+    "open_questions": ["Which commit metadata should be surfaced in the knowledge center?"]
+  },
+  {
+    "knowledge_id": "ki-005",
+    "title": "Comparable agent systems use files as durable memory",
+    "source_type": "external",
+    "source_ref": "competitive-research",
+    "summary": "Adjacent systems demonstrate the value of file-backed state, session transcripts, and replayable work history.",
+    "themes": ["product_narrative", "session_isolation", "knowledge_indexing"],
+    "reliability": "medium",
+    "relevance": "medium",
+    "open_questions": ["Which external workflow patterns should be adopted or deferred for V1?"]
+  },
+  {
+    "knowledge_id": "ki-006",
+    "title": "Structured handoff is required for role-to-role continuity",
+    "source_type": "external",
+    "source_ref": "workflow-methodology",
+    "summary": "Planning and delivery systems are more stable when each step produces an explicit handoff with success criteria and risks.",
+    "themes": ["handoff_governance", "role_orchestration", "review_replanning"],
+    "reliability": "medium",
+    "relevance": "high",
+    "open_questions": ["How strict should handoff validation be in the first release?"]
+  }
+]

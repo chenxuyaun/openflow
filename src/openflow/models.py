@@ -1,0 +1,125 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from enum import Enum
+from typing import List
+
+from pydantic import BaseModel, Field
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class SessionStatus(str, Enum):
+    planned = "planned"
+    active = "active"
+    waiting_confirmation = "waiting_confirmation"
+    completed = "completed"
+
+
+class WorkflowNodeType(str, Enum):
+    stage = "stage"
+    task = "task"
+
+
+class SourceType(str, Enum):
+    chat = "chat"
+    repo = "repo"
+    git = "git"
+    doc = "doc"
+    external = "external"
+
+
+class WorkflowNode(BaseModel):
+    node_id: str
+    role_name: str
+    node_type: WorkflowNodeType
+    objective: str
+    handoff_policy: str = Field(
+        default="auto",
+        description="auto or confirm",
+    )
+
+
+class WorkflowEdge(BaseModel):
+    from_node: str
+    to_node: str
+    condition: str = "default"
+
+
+class WorkflowGraph(BaseModel):
+    nodes: List[WorkflowNode] = Field(default_factory=list)
+    edges: List[WorkflowEdge] = Field(default_factory=list)
+
+
+class RoleInstanceSpec(BaseModel):
+    role_name: str
+    objective: str
+    scope: str
+    input_requirements: List[str] = Field(default_factory=list)
+    output_contract: List[str] = Field(default_factory=list)
+    preferred_workflow: List[str] = Field(default_factory=list)
+    tools_guidance: List[str] = Field(default_factory=list)
+
+
+class TaskNode(BaseModel):
+    task_id: str
+    title: str
+    status: SessionStatus = SessionStatus.planned
+    owner_role: str
+    depends_on: List[str] = Field(default_factory=list)
+    success_criteria: List[str] = Field(default_factory=list)
+
+
+class SessionRecord(BaseModel):
+    session_id: str
+    role_name: str
+    objective: str
+    status: SessionStatus
+    created_at: datetime = Field(default_factory=utc_now)
+    input_files: List[str] = Field(default_factory=list)
+
+
+class KnowledgeItem(BaseModel):
+    knowledge_id: str
+    title: str
+    source_type: SourceType
+    source_ref: str
+    summary: str
+    themes: List[str] = Field(default_factory=list)
+    reliability: str
+    relevance: str
+    open_questions: List[str] = Field(default_factory=list)
+
+
+class DecisionRecord(BaseModel):
+    decision_id: str
+    title: str
+    status: str
+    rationale: str
+    sources: List[str] = Field(default_factory=list)
+    themes: List[str] = Field(default_factory=list)
+
+
+class HandoffRecord(BaseModel):
+    session_id: str
+    session_summary: str
+    decision_updates: List[str] = Field(default_factory=list)
+    task_status_changes: List[str] = Field(default_factory=list)
+    next_role_recommendation: str
+    next_role_reason: str
+    required_input_files: List[str] = Field(default_factory=list)
+    success_criteria: List[str] = Field(default_factory=list)
+    risks: List[str] = Field(default_factory=list)
+
+
+class ProjectState(BaseModel):
+    project_id: str
+    created_at: datetime = Field(default_factory=utc_now)
+    workflow_graph: WorkflowGraph
+    role_catalog: List[RoleInstanceSpec] = Field(default_factory=list)
+    task_tree: List[TaskNode] = Field(default_factory=list)
+    sessions: List[SessionRecord] = Field(default_factory=list)
+    knowledge_items: List[KnowledgeItem] = Field(default_factory=list)
+    decisions: List[DecisionRecord] = Field(default_factory=list)

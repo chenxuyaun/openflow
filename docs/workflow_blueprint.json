@@ -1,0 +1,58 @@
+{
+  "project_id": "openflow-local",
+  "stages": [
+    {
+      "stage_id": "bootstrap",
+      "role_name": "Bootstrap Strategist",
+      "objective": "Turn the first request and research corpus into a workflow graph and task tree.",
+      "handoff_policy": "auto",
+      "outputs": ["knowledge_map", "workflow_graph", "role_catalog", "task_tree"],
+      "next_roles": ["system-architect", "research-curator"]
+    },
+    {
+      "stage_id": "architecture",
+      "role_name": "System Architect",
+      "objective": "Turn the blueprint into stable interface and storage contracts.",
+      "handoff_policy": "confirm",
+      "outputs": ["architecture_contract", "api_contract", "risk_gate_review"],
+      "next_roles": ["implementation-lead", "review-operator"]
+    },
+    {
+      "stage_id": "delivery",
+      "role_name": "Implementation Lead",
+      "objective": "Execute the approved work packages and emit structured handoffs.",
+      "handoff_policy": "auto",
+      "outputs": ["implementation_delta", "verification_evidence", "handoff_record"],
+      "next_roles": ["review-operator", "implementation-lead"]
+    },
+    {
+      "stage_id": "review",
+      "role_name": "Review Operator",
+      "objective": "Inspect delivery results, detect conflicts, and trigger replanning when needed.",
+      "handoff_policy": "auto",
+      "outputs": ["review_report", "decision_updates", "replanning_request"],
+      "next_roles": ["implementation-lead", "bootstrap", "system-architect"]
+    },
+    {
+      "stage_id": "research",
+      "role_name": "Research Curator",
+      "objective": "Continuously organize internal and external materials into reusable knowledge items.",
+      "handoff_policy": "auto",
+      "outputs": ["knowledge_item_updates", "source_map", "decision_support_notes"],
+      "next_roles": ["bootstrap", "system-architect", "review-operator"]
+    }
+  ],
+  "high_risk_gates": [
+    "architecture direction changes",
+    "destructive migrations",
+    "tooling with broad external side effects"
+  ],
+  "page_flow": [
+    "landing",
+    "project_dashboard",
+    "knowledge_center",
+    "workflow_graph",
+    "session_detail",
+    "task_board"
+  ]
+}

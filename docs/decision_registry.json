@@ -1,0 +1,42 @@
+[
+  {
+    "decision_id": "dec-001",
+    "title": "Use file-based memory instead of persistent runtime context",
+    "status": "accepted",
+    "rationale": "Fresh role sessions should resume work from auditable artifacts.",
+    "sources": ["chat-history", "repo-readme"],
+    "themes": ["session_isolation", "knowledge_indexing"]
+  },
+  {
+    "decision_id": "dec-002",
+    "title": "Use a dual-layer role system",
+    "status": "accepted",
+    "rationale": "Stage roles provide direction while task roles handle execution details.",
+    "sources": ["chat-history"],
+    "themes": ["role_orchestration", "workflow_governance"]
+  },
+  {
+    "decision_id": "dec-003",
+    "title": "First expansion focuses on product and process blueprinting",
+    "status": "accepted",
+    "rationale": "The project needs a full V1 blueprint before broad implementation work.",
+    "sources": ["chat-history", "repo-state"],
+    "themes": ["product_narrative", "execution_tracking"]
+  },
+  {
+    "decision_id": "dec-004",
+    "title": "The first blueprint package must serve both internal execution and external attraction",
+    "status": "accepted",
+    "rationale": "The same product story should align future team work and explain the product to potential users.",
+    "sources": ["chat-history", "docs/master_prd.md"],
+    "themes": ["product_narrative", "role_orchestration"]
+  },
+  {
+    "decision_id": "dec-005",
+    "title": "External references will be systematized rather than kept as informal inspiration",
+    "status": "accepted",
+    "rationale": "The first research pass must be full-spectrum and cite external patterns explicitly.",
+    "sources": ["chat-history", "docs/research_master_outline.md"],
+    "themes": ["knowledge_indexing", "handoff_governance"]
+  }
+]
