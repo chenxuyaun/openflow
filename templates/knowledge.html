@@ -14,8 +14,8 @@
     <div class="list-card">
       <strong>{{ item.title }}</strong>
       <p>{{ item.summary }}</p>
-      <p class="muted">{{ item.generated_at }} · {{ item.source_ref }}</p>
-      <p class="muted">{{ item.source_family }} · {{ item.entry_kind }} · {{ item.adoption_status }}</p>
+      <p class="muted">{{ item.generated_at }} | {{ item.source_ref }}</p>
+      <p class="muted">{{ item.source_family }} | {{ item.entry_kind }} | {{ item.adoption_status }}</p>
     </div>
     {% endfor %}
   </article>
@@ -26,7 +26,7 @@
       <div class="list-card">
         <strong>{{ family }}</strong>
         {% for item in items %}
-        <p><code>{{ item.entry_kind }}</code> · {{ item.title }} · {{ item.adoption_status }}</p>
+        <p><code>{{ item.entry_kind }}</code> | {{ item.title }} | {{ item.adoption_status }}</p>
         {% endfor %}
       </div>
       {% endfor %}
@@ -54,7 +54,7 @@
     <p>{{ item.rationale }}</p>
     {% if item.supporting_knowledge %}
       {% for support in item.supporting_knowledge %}
-      <p class="muted">{{ support.entry_kind }} · {{ support.title }} · {{ support.adoption_status }}</p>
+      <p class="muted">{{ support.entry_kind }} | {{ support.title }} | {{ support.adoption_status }}</p>
       {% endfor %}
     {% else %}
     <p class="muted">No linked knowledge items yet.</p>
@@ -115,12 +115,12 @@ relevance: high</textarea></label></p>
   {% for item in payload.knowledge_items %}
   <div class="list-card">
     <strong>{{ item.title }}</strong>
-    <p class="muted">{{ item.source_type }} · {{ item.source_ref }}</p>
+    <p class="muted">{{ item.source_type }} | {{ item.source_ref }}</p>
     <p>{{ item.summary }}</p>
     <p class="muted">Themes: {{ item.themes|join(", ") if item.themes else "none" }}</p>
     <p class="muted">Decisions: {{ item.decision_ids|join(", ") if item.decision_ids else "none" }}</p>
-    <p class="muted">Family: {{ item.source_family }} · Kind: {{ item.entry_kind }} · Adoption: {{ item.adoption_status }}</p>
-    <p class="muted">Session: {{ item.session_id or "n/a" }} · Handoff: {{ item.handoff_id or "n/a" }}</p>
+    <p class="muted">Family: {{ item.source_family }} | Kind: {{ item.entry_kind }} | Adoption: {{ item.adoption_status }}</p>
+    <p class="muted">Session: {{ item.session_id or "n/a" }} | Handoff: {{ item.handoff_id or "n/a" }}</p>
   </div>
   {% endfor %}
 </section>

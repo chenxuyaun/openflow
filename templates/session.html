@@ -39,7 +39,7 @@
     <div class="list-card">
       <strong>{{ payload.handoff.next_role_recommendation }}</strong>
       <p class="muted">{{ payload.handoff.next_role_reason }}</p>
-      <p class="muted">Acceptance: {{ payload.handoff.acceptance_status or "not_set" }} · Review: {{ payload.handoff.review_outcome or "not_set" }}</p>
+      <p class="muted">Acceptance: {{ payload.handoff.acceptance_status or "not_set" }} | Review: {{ payload.handoff.review_outcome or "not_set" }}</p>
       {% if payload.handoff.review_note %}
       <p class="muted">Review note: {{ payload.handoff.review_note }}</p>
       {% endif %}

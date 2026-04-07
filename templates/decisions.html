@@ -12,11 +12,11 @@
   {% for item in payload.decisions %}
   <div class="list-card">
     <strong>{{ item.title }}</strong>
-    <p class="muted">{{ item.decision_id }} · {{ item.status }}</p>
+    <p class="muted">{{ item.decision_id }} | {{ item.status }}</p>
     <p>{{ item.rationale }}</p>
     {% if item.supporting_knowledge %}
       {% for support in item.supporting_knowledge %}
-      <p class="muted">{{ support.entry_kind }} · {{ support.title }} · {{ support.adoption_status }}</p>
+      <p class="muted">{{ support.entry_kind }} | {{ support.title }} | {{ support.adoption_status }}</p>
       {% endfor %}
     {% else %}
     <p class="muted">No linked research items yet.</p>

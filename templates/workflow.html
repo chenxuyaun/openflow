@@ -15,7 +15,7 @@
     {% for stage in payload.workflow_blueprint.stages %}
     <div class="list-card">
       <strong>{{ stage.role_name }}</strong>
-      <p class="muted">{{ stage.stage_id }} · {{ stage.handoff_policy }}</p>
+      <p class="muted">{{ stage.stage_id }} | {{ stage.handoff_policy }}</p>
       <p>{{ stage.objective }}</p>
     </div>
     {% endfor %}
@@ -38,7 +38,7 @@
   <h2>Role Transition Edges</h2>
   {% for edge in payload.workflow_graph.edges %}
   <div class="list-card">
-    <strong>{{ edge.from_node }} → {{ edge.to_node }}</strong>
+    <strong>{{ edge.from_node }} -> {{ edge.to_node }}</strong>
     <p class="muted">Condition: {{ edge.condition }}</p>
   </div>
   {% endfor %}

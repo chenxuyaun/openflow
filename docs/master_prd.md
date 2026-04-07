@@ -127,6 +127,9 @@ interface model:
 - Heavy vector or retrieval infrastructure as a first requirement
 - Deep per-vertical customization for every possible domain
 
+Beta follow-on work should be tracked in `docs/beta_backlog.md` instead of
+remaining as ambiguous Alpha scope.
+
 ## 10. Acceptance Criteria
 
 - A user can start a workspace from an ordinary goal statement

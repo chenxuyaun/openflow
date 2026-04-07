@@ -81,6 +81,9 @@ The Alpha release should let a user:
 - see materials, decisions, and timelines remain connected
 - open advanced workflow and governance views when needed
 
+Anything beyond this core loop should be treated as Beta backlog, not as hidden
+Alpha scope.
+
 ## Direct Conversion To Landing
 
 The landing page should frame OpenFlow as a workspace for coordinated progress,

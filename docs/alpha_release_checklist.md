@@ -43,3 +43,4 @@
 - README reflects current product behavior
 - Product hook matches landing direction
 - PRD matches current Alpha scope
+- Beta-only expansion items are moved to `docs/beta_backlog.md`

@@ -47,7 +47,7 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 app = FastAPI(
     title="OpenFlow",
     version="0.1.0",
-    description="Role-driven workflow engine with file-based session memory.",
+    description="AI collaboration workspace with file-based session memory.",
 )
 
 

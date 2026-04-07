@@ -27,7 +27,7 @@
   {% for task in payload.task_tree %}
   <div class="list-card">
     <strong>{{ task.title }}</strong>
-    <p class="muted">{{ task.task_id }} · {{ task.status }} · {{ task.owner_role }} · Priority {{ task.priority }}</p>
+    <p class="muted">{{ task.task_id }} | {{ task.status }} | {{ task.owner_role }} | Priority {{ task.priority }}</p>
     {% if task.depends_on %}
     <p class="muted">Depends on: {{ task.depends_on|join(", ") }}</p>
     {% endif %}

@@ -60,6 +60,7 @@ docs/
   landing_blueprint.md
   demo_flow.md
   master_prd.md
+  beta_backlog.md
   research_master_outline.md
   alpha_release_checklist.md
   knowledge_index.json
@@ -100,3 +101,8 @@ python -m pytest -q
 - Clear next-step guidance and recoverable project memory
 - Explainable governance through reviews, decisions, and timelines
 - Usable both as a simple work workspace and as an advanced coordination system
+
+## Beta Boundary
+
+Alpha intentionally stops at the core workspace loop. Deferred follow-on work is
+tracked in `docs/beta_backlog.md`.
