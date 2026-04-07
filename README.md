@@ -85,8 +85,42 @@ tests/
 ## Run
 
 ```powershell
-python -m uvicorn openflow.app:app --app-dir src --reload
+python -m uvicorn openflow.app:app --app-dir src --reload --port 8001
 ```
+
+Open `http://127.0.0.1:8001/` after the server starts.
+
+## Local Demo
+
+The fastest way to see the product flow is:
+
+1. Open the landing page at `http://127.0.0.1:8001/`
+2. Create a workspace from `goal + initial_prompt`
+3. Follow the redirect to `/projects/{project_id}/welcome`
+4. Open the workspace overview, materials center, and first work step
+5. Complete a step, write a handoff, then review or advance it
+
+See `docs/demo_runbook.md` for a full click-by-click walkthrough.
+
+## Windows Notes
+
+- `run_demo.ps1` is a PowerShell script. Run it from PowerShell, not directly from
+  Git Bash.
+- Keep a space between `--app-dir src` and `--reload`. Writing
+  `--app-dir src--reload` will fail to import the app.
+- If `8000` is already occupied on your machine, use the documented `8001`
+  command above.
+
+## Demo Surfaces
+
+- `/` landing and workspace entry
+- `/app` parallel frontend shell for the decoupled workspace experience
+- `/projects/{project_id}/welcome` first-run handoff and next-step guide
+- `/projects/{project_id}` workspace overview
+- `/projects/{project_id}/knowledge` materials center
+- `/projects/{project_id}/tasks` work board
+- `/projects/{project_id}/workflow` advanced workflow
+- `/projects/{project_id}/sessions/{session_id}` work step detail
 
 ## Verify
 
@@ -107,6 +141,12 @@ python -m pytest -q
 
 Alpha intentionally stops at the core workspace loop. Deferred follow-on work is
 tracked in `docs/beta_backlog.md`.
+
+## Parallel Frontend
+
+OpenFlow now also exposes a parallel frontend shell at `/app`. This decoupled
+workspace uses page-level JSON APIs under `/api/app/...` while the original
+server-rendered pages remain available for compatibility and verification.
 
 ## Release Notes
 

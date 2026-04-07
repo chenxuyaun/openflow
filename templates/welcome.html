@@ -3,102 +3,128 @@
 {% set handoff = summary.latest_handoff %}
 {% set next_step = summary.next_step %}
 {% set recommendation = summary.recommendation %}
-<section class="hero">
-  <div class="eyebrow">Workspace Ready</div>
-  <h1>{{ summary.project.project_name }} is ready to continue.</h1>
-  <p>{{ summary.project.goal }}</p>
-  <p class="muted">Your goal, materials, and progress are now saved so every fresh session can continue from records instead of guesswork.</p>
-  <div class="statline">
-    <div class="stat">Work type: {{ summary.state.project_type_label }}</div>
-    <div class="stat">Stage: {{ summary.project_stage }}</div>
-    <div class="stat">Organized materials: {{ summary.materials.organized_material_count }}</div>
-    <div class="stat">Current progress: {{ summary.governance.latest_review }}</div>
-    <div class="stat">Next owner: {{ summary.next_role or "n/a" }}</div>
-  </div>
-</section>
+<div class="page-shell">
+  <section class="hero panel-accent">
+    <div class="eyebrow">Workspace Ready</div>
+    <h1>{{ summary.project.project_name }} is ready for the next action.</h1>
+    <p class="lede">{{ summary.project.goal }}</p>
+    <p class="muted">The goal, materials, and current progress are now preserved in records, so every fresh session can continue from files instead of rebuilding context.</p>
+    <div class="statline">
+      <div class="stat">Work type: {{ summary.state.project_type_label }}</div>
+      <div class="stat">Stage: {{ summary.project_stage }}</div>
+      <div class="stat">Organized materials: {{ summary.materials.organized_material_count }}</div>
+      <div class="stat">Current progress: {{ summary.governance.latest_review }}</div>
+      <div class="stat">Next owner: {{ summary.next_role or "n/a" }}</div>
+    </div>
+  </section>
 
-<section class="grid">
-  <article class="panel">
-    <h2>Current Goal</h2>
-    <div class="list-card">
-      <strong>Current goal</strong>
-      <p>{{ summary.project.goal }}</p>
-    </div>
-    <div class="list-card">
-      <strong>Organized materials</strong>
-      <p>{{ summary.materials.summary }}</p>
-      <p class="muted">Material groups: {{ summary.materials.research_group_count }}</p>
-    </div>
-    <div class="list-card">
-      <strong>Current progress</strong>
-      <p>{{ summary.governance.why_current_state }}</p>
-      <p class="muted">Recent role map: {{ summary.state.user_facing_roles|join(", ") }}</p>
-    </div>
-  </article>
+  <section class="page-grid">
+    <article class="stack">
+      <section class="panel">
+        <div class="section-head">
+          <div>
+            <div class="eyebrow">Suggested Next Step</div>
+            <h2>Start where the current records say the work should continue</h2>
+          </div>
+        </div>
+        <div class="callout">
+          <strong>{{ recommendation.recommended_role }}</strong>
+          <p class="muted">{{ recommendation.recommended_reason }}</p>
+          <p class="microcopy">Why the system recommends this: {{ summary.why_next_role }}</p>
+        </div>
+        <div class="list-card">
+          <strong>Why you are starting here</strong>
+          <p>{{ summary.governance.why_current_state }}</p>
+        </div>
+        <div class="list-card">
+          <strong>Recommended action</strong>
+          <p>{{ next_step.message }}</p>
+          {% if recommendation.secondary_note %}
+          <p class="muted">{{ recommendation.secondary_note }}</p>
+          {% endif %}
+          {% if handoff and next_step.state == "review_needed" %}
+          <p class="microcopy">This next step needs review before it can continue.</p>
+          {% endif %}
+          <div class="inline-actions" style="margin-top:12px">
+            {% if handoff and next_step.state == "ready" %}
+            <form method="post" action="/projects/{{ project_id }}/handoffs/{{ handoff.handoff_id }}/advance">
+              <button type="submit">Continue Recommended Step</button>
+            </form>
+            <a class="button button-secondary" href="/projects/{{ project_id }}">Open Workspace</a>
+            {% elif handoff and next_step.state == "review_needed" %}
+            <a class="button" href="/projects/{{ project_id }}">Open Workspace</a>
+            <a class="button button-secondary" href="/projects/{{ project_id }}/workflow">Open Review Context</a>
+            {% elif next_step.state == "research_gap" %}
+            <a class="button" href="/projects/{{ project_id }}/knowledge#organize-materials">Organize Materials</a>
+            <a class="button button-secondary" href="/projects/{{ project_id }}">Open Workspace</a>
+            {% elif handoff and next_step.state == "blocked" %}
+            <a class="button" href="/projects/{{ project_id }}/tasks">Open Details</a>
+            <a class="button button-secondary" href="/projects/{{ project_id }}">Open Workspace</a>
+            {% else %}
+            <a class="button button-secondary" href="/projects/{{ project_id }}">Open Workspace</a>
+            {% endif %}
+          </div>
+        </div>
+      </section>
 
-  <article class="panel">
-    <h2>Suggested Next Step</h2>
-    <div class="list-card">
-      <strong>Why you are starting here</strong>
-      <p>{{ summary.governance.why_current_state }}</p>
-    </div>
-    {% if handoff %}
-    <div class="list-card">
-      <strong>{{ recommendation.recommended_role }}</strong>
-      <p>{{ recommendation.recommended_reason }}</p>
-      <p class="muted">Why the system recommends this: {{ summary.why_next_role }}</p>
-      <p>{{ next_step.message }}</p>
-      {% if recommendation.secondary_note %}
-      <p class="muted">{{ recommendation.secondary_note }}</p>
+      {% if not handoff and next_step.state != "research_gap" %}
+      <section class="panel">
+        <div class="section-head">
+          <div>
+            <div class="eyebrow">Start First Work Step</div>
+            <h2>Create the first practical step from this workspace</h2>
+            <p class="muted">This is the fastest way to move from an initial idea into an actionable record.</p>
+          </div>
+        </div>
+        <form method="post" action="/projects/{{ project_id }}/sessions" class="form-grid">
+          <div class="form-row">
+            <label for="role_name">Who should work on this first?</label>
+            <input id="role_name" type="text" name="role_name" value="{{ first_step_defaults.role_name }}" />
+          </div>
+          <div class="form-row">
+            <label for="objective">What should this first step accomplish?</label>
+            <textarea id="objective" name="objective" style="min-height:90px">{{ first_step_defaults.objective }}</textarea>
+          </div>
+          <div class="form-row">
+            <label for="input_files">Which materials should it read first?</label>
+            <textarea id="input_files" name="input_files" style="min-height:90px">{{ first_step_defaults.input_files }}</textarea>
+          </div>
+          <div class="inline-actions">
+            <button type="submit">Start First Work Step</button>
+            <a class="button button-secondary" href="/projects/{{ project_id }}/knowledge">Review Materials First</a>
+          </div>
+        </form>
+      </section>
       {% endif %}
-      {% if next_step.state == "review_needed" %}
-      <p class="muted">This next step needs review before it can continue. Open the workspace if you want to review it now.</p>
-      <p><a href="/projects/{{ project_id }}">Open Workspace</a></p>
-      {% elif next_step.state == "ready" %}
-      <form method="post" action="/projects/{{ project_id }}/handoffs/{{ handoff.handoff_id }}/advance">
-        <p><button type="submit">Continue Recommended Step</button></p>
-      </form>
-      {% elif next_step.state == "blocked" %}
-      <p class="muted">This next step is blocked right now. Open the workspace to inspect the blocking detail.</p>
-      <p><a href="/projects/{{ project_id }}">Open Workspace</a></p>
-      {% else %}
-      <p><a href="/projects/{{ project_id }}">Open Workspace</a></p>
-      {% endif %}
-    </div>
-    {% else %}
-    <div class="list-card">
-      <strong>{{ recommendation.recommended_role }}</strong>
-      <p>{{ recommendation.recommended_reason }}</p>
-      <p class="muted">{{ recommendation.secondary_note }}</p>
-    </div>
-    {% if next_step.state == "research_gap" %}
-    <div class="list-card">
-      <strong>Organize Materials</strong>
-      <p class="muted">OpenFlow recommends organizing materials before starting the next execution step.</p>
-      <p><a href="/projects/{{ project_id }}/knowledge#organize-materials">Organize Materials</a></p>
-    </div>
-    {% else %}
-    <div class="list-card">
-      <strong>Start First Work Step</strong>
-      <p class="muted">This creates the first practical step from the current workspace state.</p>
-      <form method="post" action="/projects/{{ project_id }}/sessions">
-        <p><label>Who should work on this first?<br /><input type="text" name="role_name" style="width:100%" value="{{ first_step_defaults.role_name }}" /></label></p>
-        <p><label>What should this first step accomplish?<br /><textarea name="objective" style="width:100%;min-height:90px">{{ first_step_defaults.objective }}</textarea></label></p>
-        <p><label>Which materials should it read first?<br /><textarea name="input_files" style="width:100%;min-height:90px">{{ first_step_defaults.input_files }}</textarea></label></p>
-        <p><button type="submit">Start First Work Step</button></p>
-      </form>
-    </div>
-    {% endif %}
-    {% endif %}
-  </article>
-</section>
+    </article>
 
-<section class="panel">
-  <h2>Open The Workspace</h2>
-  <p class="muted">The workspace keeps the main path simple, while materials, workflow, review, decisions, and detailed records stay available underneath.</p>
-  <p>
-    <a href="/projects/{{ project_id }}">Open Workspace</a> |
-    <a href="/projects/{{ project_id }}/knowledge">Organize Materials</a>
-  </p>
-</section>
+    <aside class="stack">
+      <section class="panel">
+        <div class="eyebrow">Current Goal</div>
+        <h3>What this workspace is trying to finish</h3>
+        <p>{{ summary.project.goal }}</p>
+      </section>
+      <section class="panel">
+        <div class="eyebrow">Materials</div>
+        <h3>What is already organized</h3>
+        <p>{{ summary.materials.summary }}</p>
+        <p class="microcopy">Material groups: {{ summary.materials.research_group_count }}</p>
+      </section>
+      <section class="panel">
+        <div class="eyebrow">Progress</div>
+        <h3>Current state in ordinary work language</h3>
+        <p>{{ summary.governance.why_current_state }}</p>
+        <p class="microcopy">Recent role map: {{ summary.state.user_facing_roles|join(", ") }}</p>
+      </section>
+      <section class="panel">
+        <div class="eyebrow">Workspace Tools</div>
+        <p class="muted">Open the full workspace when you need decisions, workflow details, review history, or deeper material inspection.</p>
+        <div class="inline-actions">
+          <a class="button button-secondary" href="/projects/{{ project_id }}">Open Workspace</a>
+          <a class="button button-secondary" href="/projects/{{ project_id }}/knowledge">Organize Materials</a>
+        </div>
+      </section>
+    </aside>
+  </section>
+</div>
 {% endblock %}

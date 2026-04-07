@@ -7,8 +7,10 @@ from fastapi import FastAPI
 from fastapi import Form
 from fastapi import Query
 from fastapi import Request
+from fastapi.responses import FileResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from openflow.service import (
     advance_project_handoff,
@@ -42,6 +44,8 @@ from openflow.models import (
 )
 
 TEMPLATES_DIR = Path(__file__).resolve().parents[2] / "templates"
+STATIC_DIR = Path(__file__).resolve().parents[2] / "static"
+STATIC_APP_DIR = STATIC_DIR / "app"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 app = FastAPI(
@@ -49,6 +53,40 @@ app = FastAPI(
     version="0.1.0",
     description="AI collaboration workspace with file-based session memory.",
 )
+app.mount("/app-static", StaticFiles(directory=str(STATIC_APP_DIR)), name="app-static")
+
+
+def _proof_points() -> list[str]:
+    return [
+        "Every role starts fresh",
+        "Project memory stays in files",
+        "Progress remains visible",
+        "The next step stays clear",
+    ]
+
+
+def _first_step_defaults(project_id: str) -> dict[str, str]:
+    return {
+        "role_name": "Implementation Lead",
+        "objective": "Start the first practical step for this workspace and move the project toward a visible next result.",
+        "input_files": f"projects/{project_id}/workflow_graph.json",
+    }
+
+
+def _session_complete_defaults(project_id: str, session_id: str) -> dict[str, object]:
+    return {
+        "session_summary": "Summarize the work step outcome and what changed.",
+        "next_role_recommendation": "Review Operator",
+        "next_role_reason": "A review pass is needed before advancing.",
+        "required_input_files": [f"projects/{project_id}/sessions/{session_id}/handoff.json"],
+        "success_criteria": ["Review the evidence", "Decide whether to advance"],
+        "risks": ["The review may trigger replanning."],
+        "transcript_note": "Record the most important execution note from this session.",
+        "task_status_changes": ["implementation-slice=completed"],
+        "review_outcome": "pass",
+        "acceptance_status": "accepted",
+        "followup_actions": ["Start the recommended next role."],
+    }
 
 
 @app.get("/health")
@@ -65,12 +103,7 @@ def landing_page(request: Request):
         {
             "title": "OpenFlow",
             "blueprint": blueprint,
-            "proof_points": [
-                "Every role starts fresh",
-                "Project memory stays in files",
-                "Progress remains visible",
-                "The next step stays clear",
-            ],
+            "proof_points": _proof_points(),
         },
     )
 
@@ -116,6 +149,100 @@ def workflow(project_id: Optional[str] = Query(default=None)) -> dict[str, objec
 @app.get("/blueprint")
 def blueprint() -> dict[str, object]:
     return build_blueprint_package()
+
+
+@app.get("/api/app/landing")
+def app_landing() -> dict[str, object]:
+    blueprint = build_blueprint_package()
+    return {
+        "title": "OpenFlow",
+        "proof_points": _proof_points(),
+        "blueprint": blueprint,
+        "examples": [
+            "Organize research into a briefing",
+            "Turn scattered notes into a deliverable",
+            "Create a reusable plan from draft material",
+        ],
+        "defaults": {
+            "project_name": "OpenFlow Workspace",
+            "goal": "Turn scattered research into a clear briefing and next-step plan.",
+            "initial_prompt": "I have interview notes, reference links, an unfinished outline, and a review deadline next week. Help organize the materials, show the current progress, and guide the next step.",
+        },
+    }
+
+
+@app.get("/api/app/projects/{project_id}/welcome")
+def app_welcome(project_id: str) -> dict[str, object]:
+    return {
+        "project_id": project_id,
+        "summary": get_project_state(project_id),
+        "first_step_defaults": _first_step_defaults(project_id),
+    }
+
+
+@app.get("/api/app/projects/{project_id}/workspace")
+def app_workspace(project_id: str) -> dict[str, object]:
+    return {
+        "project_id": project_id,
+        "summary": get_project_state(project_id),
+        "timeline": get_project_timeline(project_id)["events"],
+    }
+
+
+@app.get("/api/app/projects/{project_id}/session/{session_id}")
+def app_session(project_id: str, session_id: str) -> dict[str, object]:
+    return {
+        "project_id": project_id,
+        "session_id": session_id,
+        "payload": get_project_session_detail(project_id, session_id),
+        "complete_defaults": _session_complete_defaults(project_id, session_id),
+    }
+
+
+@app.get("/api/app/projects/{project_id}/knowledge")
+def app_knowledge(
+    project_id: str,
+    q: Optional[str] = Query(default=None),
+    source_family: Optional[str] = Query(default=None),
+    entry_kind: Optional[str] = Query(default=None),
+    adoption_status: Optional[str] = Query(default=None),
+    linked_only: bool = Query(default=False),
+) -> dict[str, object]:
+    return {
+        "project_id": project_id,
+        "payload": get_project_knowledge(
+            project_id,
+            q=q,
+            source_family=source_family,
+            entry_kind=entry_kind,
+            adoption_status=adoption_status,
+            linked_only=linked_only,
+        ),
+    }
+
+
+@app.get("/api/app/projects/{project_id}/tasks")
+def app_tasks(project_id: str) -> dict[str, object]:
+    return {
+        "project_id": project_id,
+        "payload": get_project_tasks(project_id),
+    }
+
+
+@app.get("/api/app/projects/{project_id}/workflow")
+def app_workflow(project_id: str) -> dict[str, object]:
+    return {
+        "project_id": project_id,
+        "payload": get_project_workflow(project_id),
+    }
+
+
+@app.get("/api/app/projects/{project_id}/decisions")
+def app_decisions(project_id: str) -> dict[str, object]:
+    return {
+        "project_id": project_id,
+        "payload": get_project_decisions(project_id),
+    }
 
 
 @app.post("/projects/bootstrap")
@@ -225,11 +352,7 @@ def welcome_page(project_id: str, request: Request):
             "title": f"Welcome {project_id}",
             "project_id": project_id,
             "summary": summary,
-            "first_step_defaults": {
-                "role_name": "Implementation Lead",
-                "objective": "Start the first practical step for this workspace and move the project toward a visible next result.",
-                "input_files": f"projects/{project_id}/workflow_graph.json",
-            },
+            "first_step_defaults": _first_step_defaults(project_id),
         },
     )
 
@@ -482,3 +605,13 @@ def complete_session_from_page(
         url=f"/projects/{project_id}/sessions/{session_id}?completed=1",
         status_code=303,
     )
+
+
+@app.get("/app")
+def app_shell() -> FileResponse:
+    return FileResponse(STATIC_APP_DIR / "index.html")
+
+
+@app.get("/app/{path:path}")
+def app_shell_paths(path: str) -> FileResponse:
+    return FileResponse(STATIC_APP_DIR / "index.html")

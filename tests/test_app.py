@@ -175,11 +175,11 @@ def test_read_only_pages_render_real_project_data() -> None:
 
     landing_response = client.get("/")
     assert landing_response.status_code == 200
-    assert "Every new role can start fresh without losing the work." in landing_response.text
+    assert "Turn scattered project input into one clear workspace with a next step." in landing_response.text
+    assert "Create Workspace" in landing_response.text
     assert "What You Bring In" in landing_response.text
-    assert "Why This Works Better Than Ordinary Chat Threads" in landing_response.text
-    assert "Project memory stays in files" in landing_response.text
-    assert "What You See In The Workspace" in landing_response.text
+    assert "Ordinary chat flow" in landing_response.text
+    assert "What you see after the first submit" in landing_response.text
 
     welcome_response = client.get(f"/projects/{project_id}/welcome")
     assert welcome_response.status_code == 200
@@ -192,7 +192,7 @@ def test_read_only_pages_render_real_project_data() -> None:
     assert project_response.status_code == 200
     assert "UI Demo" in project_response.text
     assert "Workspace Overview" in project_response.text
-    assert "Current Goal" in project_response.text
+    assert "Current Goal And Work Board Snapshot" in project_response.text
     assert "Advanced Workspace Tools" in project_response.text
     assert "Open Welcome Guide" in project_response.text
     assert "Suggested Next Step" in project_response.text
@@ -1155,3 +1155,52 @@ def test_workspace_language_appears_on_task_and_session_pages() -> None:
     assert "Complete Work Step" in session_page.text
     assert "Materials Used" in session_page.text
     assert "Advanced controls" in session_page.text
+
+
+def test_app_shell_and_landing_api_render_parallel_frontend() -> None:
+    landing_payload = client.get("/api/app/landing")
+    assert landing_payload.status_code == 200
+    data = landing_payload.json()
+
+    assert data["title"] == "OpenFlow"
+    assert "Create a reusable plan from draft material" in data["examples"]
+    assert data["defaults"]["project_name"] == "OpenFlow Workspace"
+
+    app_shell = client.get("/app")
+    assert app_shell.status_code == 200
+    assert "/app-static/main.js" in app_shell.text
+    assert '<div id="app"></div>' in app_shell.text
+
+
+def test_app_project_endpoints_return_workspace_payloads() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Drive the new frontend from aggregated project APIs.",
+            "initial_prompt": "Need a parallel app shell that reads project state, session state, and materials from page-level APIs.",
+            "project_name": "Frontend Shell Demo",
+        },
+    )
+    project_id = bootstrap_response.json()["project_id"]
+    session_id = bootstrap_response.json()["session_id"]
+
+    welcome_payload = client.get(f"/api/app/projects/{project_id}/welcome")
+    assert welcome_payload.status_code == 200
+    assert welcome_payload.json()["first_step_defaults"]["role_name"] == "Implementation Lead"
+
+    workspace_payload = client.get(f"/api/app/projects/{project_id}/workspace")
+    assert workspace_payload.status_code == 200
+    assert workspace_payload.json()["summary"]["project"]["project_name"] == "Frontend Shell Demo"
+    assert "timeline" in workspace_payload.json()
+
+    session_payload = client.get(f"/api/app/projects/{project_id}/session/{session_id}")
+    assert session_payload.status_code == 200
+    assert session_payload.json()["complete_defaults"]["next_role_recommendation"] == "Review Operator"
+
+    knowledge_payload = client.get(f"/api/app/projects/{project_id}/knowledge")
+    assert knowledge_payload.status_code == 200
+    assert "payload" in knowledge_payload.json()
+
+    tasks_payload = client.get(f"/api/app/projects/{project_id}/tasks")
+    assert tasks_payload.status_code == 200
+    assert "task_tree" in tasks_payload.json()["payload"]

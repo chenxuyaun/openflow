@@ -1,101 +1,183 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="hero">
-  <div class="eyebrow">AI Collaboration Workspace</div>
-  <h1>Every new role can start fresh without losing the work.</h1>
-  <p class="muted">OpenFlow turns scattered inputs into organized materials, visible progress, and a clear next step so mixed teams can continue from records instead of chat memory.</p>
-  <div class="statline">
-    {% for point in proof_points %}
-    <div class="stat">{{ point }}</div>
-    {% endfor %}
-  </div>
-</section>
+<div class="page-shell">
+  <section class="hero panel-accent">
+    <div class="split-hero">
+      <div>
+        <div class="eyebrow">AI Collaboration Workspace</div>
+        <h1>Turn scattered project input into one clear workspace with a next step.</h1>
+        <p class="lede">Start with a goal and whatever notes, drafts, links, files, or constraints you already have. OpenFlow keeps every new role in a fresh session while project continuity stays in files, records, and handoffs.</p>
+        <div class="statline">
+          {% for point in proof_points %}
+          <div class="stat">{{ point }}</div>
+          {% endfor %}
+        </div>
+        <div class="hero-actions">
+          <a class="button" href="#create-workspace">Create Workspace</a>
+          <a class="button button-secondary" href="#workspace-output">See What The Workspace Produces</a>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="support-card">
+          <strong>What users understand in the first screen</strong>
+          <p class="muted">What this tool is for, what to bring in, and what will happen after the first submit.</p>
+        </div>
+        <div class="proof-grid">
+          <div class="metric">
+            <strong>Fresh sessions</strong>
+            <span class="microcopy">Every role starts clean.</span>
+          </div>
+          <div class="metric">
+            <strong>File-based continuity</strong>
+            <span class="microcopy">Progress survives session changes.</span>
+          </div>
+          <div class="metric">
+            <strong>Visible recommendation</strong>
+            <span class="microcopy">The next step is explicit.</span>
+          </div>
+          <div class="metric">
+            <strong>Recoverable workflow</strong>
+            <span class="microcopy">Review, replan, and continue paths stay visible.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 
-<section class="grid">
-  <article class="panel">
-    <h2>What You Bring In</h2>
-    <p>Bring in scattered notes, rough goals, partial drafts, meeting summaries, links, and changing constraints without pre-structuring everything first.</p>
-    <div>
-      <span class="tag">Research</span>
-      <span class="tag">Writing</span>
-      <span class="tag">Planning</span>
-      <span class="tag">Organization</span>
-      <span class="tag">Delivery</span>
-    </div>
-  </article>
-  <article class="panel">
-    <h2>What OpenFlow Produces</h2>
-    <p>OpenFlow turns that messy starting point into one visible workspace with a current goal, organized materials, current progress, and a suggested next step.</p>
-    <div class="list-card">
-      <strong>Fresh sessions continue from records</strong>
-      <p class="muted">The work can pause, restart, or change roles without rebuilding hidden context by hand.</p>
-    </div>
-    <div class="list-card">
-      <strong>Simple first, deeper control when needed</strong>
-      <p class="muted">The main path stays simple while workflow, decisions, review, and material history remain available underneath.</p>
-    </div>
-  </article>
-</section>
+  <section class="page-grid" id="create-workspace">
+    <article class="panel">
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">Start Fast</div>
+          <h2>Create a workspace from the materials you already have</h2>
+          <p class="muted">Do not pre-structure everything first. Describe the goal, paste the context, and let the workspace organize the first practical flow.</p>
+        </div>
+      </div>
+      <div class="callout">
+        <strong>Try one of these starting points</strong>
+        <div class="chips" style="margin-top:10px">
+          <span class="tag tag-accent">Organize research into a briefing</span>
+          <span class="tag">Turn scattered notes into a deliverable</span>
+          <span class="tag">Create a reusable plan from draft material</span>
+        </div>
+      </div>
+      <form method="post" action="/" class="form-grid" style="margin-top:20px">
+        <div class="form-row">
+          <label for="project_name">Workspace name</label>
+          <input id="project_name" type="text" name="project_name" value="OpenFlow Workspace" />
+        </div>
+        <div class="form-row">
+          <label for="goal">What should this workspace finish?</label>
+          <input id="goal" type="text" name="goal" value="Turn scattered research into a clear briefing and next-step plan." />
+        </div>
+        <div class="form-row">
+          <label for="initial_prompt">What materials, context, or constraints are already available?</label>
+          <textarea id="initial_prompt" name="initial_prompt">I have interview notes, reference links, an unfinished outline, and a review deadline next week. Help organize the materials, show the current progress, and guide the next step.</textarea>
+          <div class="microcopy">Example: notes, draft text, links, deadlines, constraints, review expectations, and missing questions.</div>
+        </div>
+        <div class="inline-actions">
+          <button type="submit">Create Workspace</button>
+          <a class="button button-secondary" href="#ordinary-chat">Why not use a long chat thread?</a>
+        </div>
+      </form>
+    </article>
 
-<section class="panel">
-  <h2>Why This Works Better Than Ordinary Chat Threads</h2>
-  <div class="grid">
-    <div class="list-card">
-      <strong>Ordinary chat flow</strong>
-      <p>The project drifts across long threads, hidden context, and fragile summaries. A fresh restart often means rebuilding the state by hand.</p>
-    </div>
-    <div class="list-card">
-      <strong>OpenFlow workspace</strong>
-      <p>The project continues from saved materials, visible records, and a clear next step, so every new session can pick up from files instead of guesswork.</p>
-    </div>
-  </div>
-</section>
+    <aside class="stack">
+      <article class="panel">
+        <div class="eyebrow">What You Bring In</div>
+        <h3>Inputs can stay messy</h3>
+        <div class="chips">
+          <span class="tag">Notes</span>
+          <span class="tag">Drafts</span>
+          <span class="tag">Links</span>
+          <span class="tag">Deadlines</span>
+          <span class="tag">Constraints</span>
+          <span class="tag">Open questions</span>
+        </div>
+      </article>
+      <article class="panel">
+        <div class="eyebrow">What You Get Back</div>
+        <div class="card-grid">
+          <div class="support-card">
+            <strong>Current goal</strong>
+            <p class="muted">One visible target instead of scattered intent.</p>
+          </div>
+          <div class="support-card">
+            <strong>Organized materials</strong>
+            <p class="muted">Knowledge items, grouped inputs, and reusable summaries.</p>
+          </div>
+          <div class="support-card">
+            <strong>Recommended next step</strong>
+            <p class="muted">Who should continue next and why.</p>
+          </div>
+        </div>
+      </article>
+      <article class="panel">
+        <div class="eyebrow">Trust</div>
+        <p class="muted">The workspace does not rely on hidden chat memory. Progress remains inspectable through files, handoffs, decisions, and timeline records.</p>
+      </article>
+    </aside>
+  </section>
 
-<section class="panel">
-  <h2>What You See In The Workspace</h2>
-  <div class="grid">
-    <div class="list-card">
-      <strong>Messy input</strong>
-      <p>Interview notes, half-finished drafts, links, deadlines, and open questions.</p>
+  <section class="panel" id="ordinary-chat">
+    <div class="section-head">
+      <div>
+        <div class="eyebrow">Why This Works Better</div>
+        <h2>Ordinary chat loses continuity when the thread gets long or the role changes</h2>
+      </div>
     </div>
-    <div class="list-card">
-      <strong>Organized materials</strong>
-      <p>Saved source groups, reusable summaries, and linked decision support.</p>
+    <div class="grid">
+      <div class="support-card">
+        <strong>Ordinary chat flow</strong>
+        <p class="muted">The project drifts across long threads, fragile summaries, and hidden context. Restarting often means rebuilding state by hand.</p>
+      </div>
+      <div class="support-card">
+        <strong>OpenFlow workspace</strong>
+        <p class="muted">The project continues from saved materials, visible records, and a clear next step. Every new session can pick up from files instead of guesswork.</p>
+      </div>
     </div>
-    <div class="list-card">
-      <strong>Current progress</strong>
-      <p>The current role, the latest completed step, and what is blocked or ready.</p>
-    </div>
-    <div class="list-card">
-      <strong>Suggested next step</strong>
-      <p>A clear recommendation for what should happen next and who should do it.</p>
-    </div>
-  </div>
-</section>
+  </section>
 
-<section class="panel">
-  <h2>Start A Workspace</h2>
-  <p class="muted">You only need to provide a goal and whatever notes, files, context, or constraints you already have.</p>
-  <div class="list-card">
-    <strong>Example</strong>
-    <p>Goal: organize scattered research into a clear briefing and next-step plan.</p>
-    <p class="muted">Context: interview notes, reference links, a half-written outline, and a deadline for review next week.</p>
-  </div>
-  <form method="post" action="/">
-    <p><label>Workspace name<br /><input type="text" name="project_name" style="width:100%" value="OpenFlow Workspace" /></label></p>
-    <p><label>What do you want to accomplish?<br /><input type="text" name="goal" style="width:100%" value="Turn scattered research into a clear briefing and next-step plan." /></label></p>
-    <p><label>What materials, context, or constraints do you already have?<br /><textarea name="initial_prompt" style="width:100%;min-height:130px">I have interview notes, reference links, an unfinished outline, and a review deadline next week. Help organize the materials, show the current progress, and guide the next step.</textarea></label></p>
-    <p><button type="submit">Start Workspace</button></p>
-  </form>
-</section>
+  <section class="panel" id="workspace-output">
+    <div class="section-head">
+      <div>
+        <div class="eyebrow">Workspace Output</div>
+        <h2>What you see after the first submit</h2>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="support-card">
+        <strong>Messy input</strong>
+        <p class="muted">Interview notes, half-finished drafts, links, deadlines, and open questions.</p>
+      </div>
+      <div class="support-card">
+        <strong>Organized materials</strong>
+        <p class="muted">Saved source groups, reusable summaries, and linked decision support.</p>
+      </div>
+      <div class="support-card">
+        <strong>Current progress</strong>
+        <p class="muted">The current role, the latest completed step, and what is blocked or ready.</p>
+      </div>
+      <div class="support-card">
+        <strong>Suggested next step</strong>
+        <p class="muted">A clear recommendation for what should happen next and who should do it.</p>
+      </div>
+    </div>
+  </section>
 
-<section class="panel">
-  <h2>Advanced Tools</h2>
-  <p class="muted">OpenFlow keeps the default experience simple, but still provides deeper workflow, decision, review, and material history views when needed.</p>
-  <div>
-    {% for section in blueprint.demo_sections %}
-    <span class="tag">{{ section }}</span>
-    {% endfor %}
-  </div>
-</section>
+  <section class="panel">
+    <div class="section-head">
+      <div>
+        <div class="eyebrow">Advanced Tools</div>
+        <h2>Simple by default, deeper controls when needed</h2>
+        <p class="muted">The main path stays focused on starting and continuing work. Workflow, decisions, review, and material history remain available underneath.</p>
+      </div>
+    </div>
+    <div class="chips">
+      {% for section in blueprint.demo_sections %}
+      <span class="tag">{{ section }}</span>
+      {% endfor %}
+    </div>
+  </section>
+</div>
 {% endblock %}
