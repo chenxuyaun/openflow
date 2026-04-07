@@ -175,11 +175,12 @@ def test_read_only_pages_render_real_project_data() -> None:
 
     landing_response = client.get("/")
     assert landing_response.status_code == 200
-    assert "Every role gets a fresh session" in landing_response.text
+    assert "Describe what you want to finish" in landing_response.text
 
     project_response = client.get(f"/projects/{project_id}")
     assert project_response.status_code == 200
     assert "UI Demo" in project_response.text
+    assert "Workspace Overview" in project_response.text
 
     knowledge_response = client.get(f"/projects/{project_id}/knowledge")
     assert knowledge_response.status_code == 200
@@ -192,7 +193,7 @@ def test_read_only_pages_render_real_project_data() -> None:
 
     session_response = client.get(f"/projects/{project_id}/sessions/{session_id}")
     assert session_response.status_code == 200
-    assert "Session Detail" in session_response.text
+    assert "Work Step Detail" in session_response.text
 
 
 def test_docs_backed_data_loaders_return_structured_records() -> None:
@@ -239,6 +240,9 @@ def test_bootstrap_auto_ingests_project_knowledge_items() -> None:
     assert state["attraction_focus"] in {"visual_proof", "knowledge_proof", "experience_proof"}
     assert len(state["research_slots"]) >= 3
     assert len(state["governance_gates"]) >= 3
+    assert state["project_type_label"]
+    assert state["collaboration_style"]
+    assert len(state["user_facing_roles"]) >= 3
 
 
 def test_bootstrap_generation_changes_with_request_shape() -> None:
@@ -584,6 +588,7 @@ def test_project_dashboard_shows_governance_and_task_board_link() -> None:
     assert "Governance Gates" in project_page.text
     assert "Execution Priorities" in project_page.text
     assert "Why The Project Is Here Now" in project_page.text
+    assert "Work type:" in project_page.text
 
 
 def test_changes_requested_reactivates_task_with_governance_reason() -> None:
@@ -637,3 +642,26 @@ def test_timeline_includes_because_explanations() -> None:
 
     timeline = get_project_timeline(project_id)
     assert all("because" in item for item in timeline["events"])
+
+
+def test_workspace_language_appears_on_task_and_session_pages() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Coordinate a research and planning effort.",
+            "initial_prompt": "Need a workspace that feels like coordinated work, not just engineering screens.",
+            "project_name": "Workspace Language Demo",
+        },
+    )
+    project_id = bootstrap_response.json()["project_id"]
+    session_id = bootstrap_response.json()["session_id"]
+
+    task_page = client.get(f"/projects/{project_id}/tasks")
+    assert task_page.status_code == 200
+    assert "Work Board" in task_page.text
+    assert "What Matters Most Right Now" in task_page.text
+
+    session_page = client.get(f"/projects/{project_id}/sessions/{session_id}")
+    assert session_page.status_code == 200
+    assert "Complete Work Step" in session_page.text
+    assert "Materials Used" in session_page.text

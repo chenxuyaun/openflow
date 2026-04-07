@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="hero">
-  <div class="eyebrow">Project Operating System</div>
-  <h1>Every role gets a fresh session. Your project never loses context.</h1>
+  <div class="eyebrow">AI Collaboration Workspace</div>
+  <h1>Describe what you want to finish. OpenFlow will split the work, preserve the progress, and guide the next step.</h1>
   <p class="muted">
-    OpenFlow turns messy goals into visible workflows, reusable knowledge, and auditable handoffs.
+    OpenFlow helps research, planning, writing, delivery, and review continue across fresh AI sessions without losing direction.
   </p>
   <div class="statline">
     {% for point in proof_points %}
@@ -15,17 +15,19 @@
 
 <section class="grid">
   <article class="panel">
-    <h2>Why It Works</h2>
-    <p>OpenFlow makes files, decisions, workflows, and handoffs the source of truth instead of hidden chat context.</p>
+    <h2>What This Feels Like</h2>
+    <p>Start from a messy goal. OpenFlow turns it into clear work stages, shared materials, handoffs, and next-step guidance.</p>
     <div>
-      {% for section in blueprint.landing_sections %}
-      <span class="tag">{{ section }}</span>
-      {% endfor %}
+      <span class="tag">Research</span>
+      <span class="tag">Writing</span>
+      <span class="tag">Planning</span>
+      <span class="tag">Delivery</span>
+      <span class="tag">Review</span>
     </div>
   </article>
   <article class="panel">
-    <h2>Visible Proof Chain</h2>
-    <p>The same blueprint drives landing, walkthrough, task board, session detail, and governance states.</p>
+    <h2>Advanced Layer</h2>
+    <p>The same workspace still exposes workflow graph, handoff, decision registry, and knowledge center for users who need deeper governance.</p>
     <div>
       {% for section in blueprint.demo_sections %}
       <span class="tag">{{ section }}</span>
@@ -35,45 +37,34 @@
 </section>
 
 <section class="panel">
-  <h2>Start A Project</h2>
+  <h2>Start A Workspace</h2>
   <form method="post" action="/">
-    <p><label>Project name<br /><input type="text" name="project_name" style="width:100%" value="OpenFlow Project" /></label></p>
-    <p><label>Goal<br /><input type="text" name="goal" style="width:100%" value="Turn an idea into a role-driven project." /></label></p>
-    <p><label>Initial prompt<br /><textarea name="initial_prompt" style="width:100%;min-height:110px">Create a project workflow, knowledge base, and first role session.</textarea></label></p>
-    <p><button type="submit">Bootstrap Project</button></p>
+    <p><label>Workspace name<br /><input type="text" name="project_name" style="width:100%" value="OpenFlow Workspace" /></label></p>
+    <p><label>What do you want to accomplish?<br /><input type="text" name="goal" style="width:100%" value="Turn a complex goal into coordinated progress." /></label></p>
+    <p><label>What materials, context, or constraints do you already have?<br /><textarea name="initial_prompt" style="width:100%;min-height:130px">Describe your goal, what you already know, what should be considered, and what kind of help or collaboration you expect.</textarea></label></p>
+    <p><button type="submit">Start Workspace</button></p>
   </form>
 </section>
 
 <section class="panel">
-  <h2>What You Will See Immediately</h2>
+  <h2>What You See First</h2>
   <div class="grid">
     <div class="list-card">
-      <strong>1. Bootstrap modeling</strong>
-      <p>Goal becomes roles, tasks, workflow, research slots, and execution priorities.</p>
+      <strong>1. Work type is inferred</strong>
+      <p>The system reads your goal and suggests the kind of collaboration needed.</p>
     </div>
     <div class="list-card">
-      <strong>2. Fresh-session proof</strong>
-      <p>Each role starts clean and reads declared files instead of hidden context.</p>
+      <strong>2. Roles are translated into simple responsibilities</strong>
+      <p>You first see planners, builders, reviewers, and researchers before technical role specs.</p>
     </div>
     <div class="list-card">
-      <strong>3. Governance proof</strong>
-      <p>Handoffs, confirm gates, and reviews explain why the next step is allowed or blocked.</p>
+      <strong>3. Progress is visible</strong>
+      <p>You see what is happening now, why it is happening, and what should happen next.</p>
     </div>
     <div class="list-card">
-      <strong>4. Durable memory proof</strong>
-      <p>Knowledge center and timeline keep decisions, evidence, and project evolution visible.</p>
+      <strong>4. Advanced controls stay available</strong>
+      <p>Workflow graph, handoff, decision registry, and governance remain available when needed.</p>
     </div>
   </div>
-</section>
-
-<section class="panel">
-  <h2>Product Claims</h2>
-  {% for claim in blueprint.claims %}
-  <div class="list-card">
-    <h3>{{ claim.statement }}</h3>
-    <p class="muted">Pages: {{ claim.supports.pages|join(", ") }}</p>
-    <p class="muted">Workflow stages: {{ claim.supports.workflow_stages|join(", ") }}</p>
-  </div>
-  {% endfor %}
 </section>
 {% endblock %}

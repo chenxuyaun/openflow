@@ -143,6 +143,9 @@ class ProjectState(BaseModel):
     project_id: str
     created_at: datetime = Field(default_factory=utc_now)
     project_mode: str = "delivery"
+    project_type_label: str = "General Work"
+    collaboration_style: str = "guided_multi_role"
+    user_facing_roles: List[str] = Field(default_factory=list)
     attraction_focus: str = "visual_proof"
     research_slots: List[str] = Field(default_factory=list)
     governance_gates: List[str] = Field(default_factory=list)

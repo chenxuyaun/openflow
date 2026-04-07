@@ -126,6 +126,9 @@ def build_default_project_state() -> ProjectState:
 
     return ProjectState(
         project_id="openflow-local",
+        project_type_label="Build And Delivery",
+        collaboration_style="guided_multi_role",
+        user_facing_roles=["Planner", "Builder", "Reviewer"],
         workflow_graph=workflow_graph,
         role_catalog=role_catalog,
         task_tree=task_tree,

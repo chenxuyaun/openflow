@@ -1,21 +1,21 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="hero">
-  <div class="eyebrow">Project Dashboard</div>
+  <div class="eyebrow">Workspace Overview</div>
   <h1>{{ summary.project.project_name }}</h1>
   <p>{{ summary.project.goal }}</p>
   <p class="muted">Project ID: <code>{{ project_id }}</code></p>
   <div class="statline">
-    <div class="stat">Mode: {{ summary.state.project_mode }}</div>
-    <div class="stat">Attraction: {{ summary.state.attraction_focus }}</div>
-    <div class="stat">Next role: {{ summary.next_role or "n/a" }}</div>
-    <div class="stat">Review: {{ summary.governance.latest_review }}</div>
+    <div class="stat">Work type: {{ summary.state.project_type_label }}</div>
+    <div class="stat">Style: {{ summary.state.collaboration_style }}</div>
+    <div class="stat">Next step owner: {{ summary.next_role or "n/a" }}</div>
+    <div class="stat">Latest review: {{ summary.governance.latest_review }}</div>
   </div>
   <p>
-    <a href="/projects/{{ project_id }}/knowledge">Knowledge Center</a> |
+    <a href="/projects/{{ project_id }}/knowledge">Materials And Insights</a> |
     <a href="/projects/{{ project_id }}/decisions">Decision Registry</a> |
-    <a href="/projects/{{ project_id }}/workflow">Workflow Graph</a> |
-    <a href="/projects/{{ project_id }}/tasks">Task Board</a>
+    <a href="/projects/{{ project_id }}/workflow">Advanced Workflow</a> |
+    <a href="/projects/{{ project_id }}/tasks">Work Board (Task Board)</a>
   </p>
   {% if handoff_status == "waiting_confirmation" %}
   <p class="muted">Confirm gate reached. This handoff is waiting for confirmation.</p>
@@ -41,6 +41,10 @@
 
 <section class="grid">
   <article class="panel">
+    <h2>Current Collaboration Setup</h2>
+    {% for item in summary.state.user_facing_roles %}
+    <span class="tag">{{ item }}</span>
+    {% endfor %}
     <h2>Execution Priorities</h2>
     {% for item in summary.state.execution_priority %}
     <div class="list-card">
@@ -53,12 +57,12 @@
     {% endfor %}
   </article>
   <article class="panel">
-    <h2>Latest Session</h2>
+    <h2>Latest Work Step</h2>
     {% if summary.latest_session %}
     <div class="list-card">
       <strong>{{ summary.latest_session.role_name }}</strong>
       <p class="muted">{{ summary.latest_session.status }}</p>
-      <p><a href="/projects/{{ project_id }}/sessions/{{ summary.latest_session.session_id }}">Open session detail</a></p>
+      <p><a href="/projects/{{ project_id }}/sessions/{{ summary.latest_session.session_id }}">Open work step detail</a></p>
     </div>
     {% else %}
     <p class="muted">No session exists yet.</p>
@@ -90,7 +94,7 @@
 </section>
 
 <section class="panel">
-  <h2>Task Snapshot</h2>
+  <h2>Work Snapshot</h2>
   {% for task in summary.state.task_tree %}
   <div class="list-card">
     <strong>{{ task.title }}</strong>
@@ -128,12 +132,12 @@
 </section>
 
 <section class="panel">
-  <h2>Create Session</h2>
+  <h2>Start Another Work Step</h2>
   <form method="post" action="/projects/{{ project_id }}/sessions">
-    <p><label>Role name<br /><input type="text" name="role_name" style="width:100%" value="Implementation Lead" /></label></p>
-    <p><label>Objective<br /><textarea name="objective" style="width:100%;min-height:100px">Implement the next project slice.</textarea></label></p>
-    <p><label>Input files<br /><textarea name="input_files" style="width:100%;min-height:90px">projects/{{ project_id }}/workflow_graph.json</textarea></label></p>
-    <p><button type="submit">Create Session</button></p>
+    <p><label>Responsible role<br /><input type="text" name="role_name" style="width:100%" value="Implementation Lead" /></label></p>
+    <p><label>What should this work step accomplish?<br /><textarea name="objective" style="width:100%;min-height:100px">Implement the next project slice.</textarea></label></p>
+    <p><label>What materials should this step read first?<br /><textarea name="input_files" style="width:100%;min-height:90px">projects/{{ project_id }}/workflow_graph.json</textarea></label></p>
+    <p><button type="submit">Start Work Step</button></p>
   </form>
 </section>
 {% endblock %}

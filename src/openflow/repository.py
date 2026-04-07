@@ -159,12 +159,24 @@ class OpenFlowRepository:
             "preserve decisions and evidence as durable project memory",
         ]
         project_mode = "delivery"
+        project_type_label = "General Work"
+        collaboration_style = "guided_multi_role"
+        user_facing_roles = ["Coordinator", "Executor", "Reviewer"]
         if profile["research"] and not profile["implementation"]:
             project_mode = "research"
+            project_type_label = "Research And Synthesis"
+            user_facing_roles = ["Researcher", "Synthesizer", "Reviewer"]
         elif profile["ui"] and not profile["multimodal"]:
             project_mode = "experience"
+            project_type_label = "Planning And Experience Design"
+            user_facing_roles = ["Planner", "Designer", "Reviewer"]
         elif profile["multimodal"]:
             project_mode = "multimodal"
+            project_type_label = "Multimodal Build"
+            user_facing_roles = ["Planner", "Builder", "Reviewer"]
+        elif profile["implementation"] or profile["workflow"]:
+            project_type_label = "Build And Delivery"
+            user_facing_roles = ["Planner", "Builder", "Reviewer"]
         governance_gates = [
             "architecture direction changes",
             "destructive migrations",
@@ -179,6 +191,9 @@ class OpenFlowRepository:
             attraction_focus = "knowledge_proof"
         return {
             "project_mode": project_mode,
+            "project_type_label": project_type_label,
+            "collaboration_style": collaboration_style,
+            "user_facing_roles": user_facing_roles,
             "attraction_focus": attraction_focus,
             "research_slots": research_slots,
             "governance_gates": governance_gates,
@@ -990,6 +1005,9 @@ class OpenFlowRepository:
         project_state = ProjectState(
             project_id=project_id,
             project_mode=str(metadata["project_mode"]),
+            project_type_label=str(metadata["project_type_label"]),
+            collaboration_style=str(metadata["collaboration_style"]),
+            user_facing_roles=list(metadata["user_facing_roles"]),
             attraction_focus=str(metadata["attraction_focus"]),
             research_slots=list(metadata["research_slots"]),
             governance_gates=list(metadata["governance_gates"]),
@@ -1011,6 +1029,9 @@ class OpenFlowRepository:
                 "initial_prompt": request.initial_prompt,
                 "created_at": project_state.created_at,
                 "project_mode": project_state.project_mode,
+                "project_type_label": project_state.project_type_label,
+                "collaboration_style": project_state.collaboration_style,
+                "user_facing_roles": project_state.user_facing_roles,
                 "attraction_focus": project_state.attraction_focus,
                 "research_slots": project_state.research_slots,
                 "governance_gates": project_state.governance_gates,
@@ -1179,6 +1200,9 @@ class OpenFlowRepository:
         return ProjectState(
             project_id=project_id,
             project_mode=str(project_meta.get("project_mode", "delivery")),
+            project_type_label=str(project_meta.get("project_type_label", "General Work")),
+            collaboration_style=str(project_meta.get("collaboration_style", "guided_multi_role")),
+            user_facing_roles=list(project_meta.get("user_facing_roles", [])),
             attraction_focus=str(project_meta.get("attraction_focus", "visual_proof")),
             research_slots=list(project_meta.get("research_slots", [])),
             governance_gates=list(project_meta.get("governance_gates", [])),
