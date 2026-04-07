@@ -4,6 +4,7 @@
   <div class="eyebrow">Knowledge Center</div>
   <h1>Knowledge for {{ project_id }}</h1>
   <p class="muted">Blueprint docs, research packs, project knowledge, decisions, and files are visible here.</p>
+  <p><a href="/projects/{{ project_id }}/decisions">Open Decision Registry</a></p>
 </section>
 
 <section class="grid">
@@ -77,6 +78,35 @@ handoff_governance</textarea></label></p>
     <p><label>Reliability<br /><input type="text" name="reliability" style="width:100%" value="medium" /></label></p>
     <p><label>Relevance<br /><input type="text" name="relevance" style="width:100%" value="high" /></label></p>
     <p><button type="submit">Ingest Research Pack</button></p>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Batch Research Pack Ingest</h2>
+  <p class="muted">Use blank lines to separate packs. Supported keys: <code>pack_title</code>, <code>source_family</code>, <code>source_ref</code>, <code>raw_notes</code>, <code>synthesized_summary</code>, <code>themes</code>, <code>decision_ids</code>, <code>adoption_status</code>, <code>reliability</code>, <code>relevance</code>.</p>
+  <form method="post" action="/projects/{{ project_id }}/research-packs/batch">
+    <p><label>Batch payload<br /><textarea name="batch_payload" style="width:100%;min-height:220px">pack_title: Workflow method review
+source_family: workflow_handoff_methods
+source_ref: internal-notes
+raw_notes: Raw notes about handoff quality.
+synthesized_summary: Adopt explicit review visibility.
+themes: handoff_governance,knowledge_indexing
+decision_ids:
+adoption_status: proposed
+reliability: medium
+relevance: high
+
+pack_title: Adjacent product scan
+source_family: competitor_and_adjacent_products
+source_ref: manual-notes
+raw_notes: Raw notes from adjacent products.
+synthesized_summary: Reject hidden state transitions.
+themes: product_narrative,workflow_governance
+decision_ids:
+adoption_status: proposed
+reliability: medium
+relevance: high</textarea></label></p>
+    <p><button type="submit">Ingest Batch Research Packs</button></p>
   </form>
 </section>
 

@@ -495,6 +495,78 @@ def test_research_pack_ingest_creates_raw_and_synthesized_items() -> None:
     assert "Decisions Influenced By Research" in knowledge_page.text
 
 
+def test_batch_research_pack_ingest_groups_multiple_packs() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Organize multiple research sources at once.",
+            "initial_prompt": "Need batch research pack ingest.",
+            "project_name": "Batch Research Demo",
+        },
+    )
+    project_id = bootstrap_response.json()["project_id"]
+
+    batch_response = client.post(
+        "/research-packs/batch",
+        json={
+            "project_id": project_id,
+            "packs": [
+                {
+                    "project_id": project_id,
+                    "pack_title": "Workflow review",
+                    "source_family": "workflow_handoff_methods",
+                    "source_ref": "notes-a",
+                    "raw_notes": "Raw notes A",
+                    "synthesized_summary": "Summary A",
+                },
+                {
+                    "project_id": project_id,
+                    "pack_title": "Competitor scan",
+                    "source_family": "competitor_and_adjacent_products",
+                    "source_ref": "notes-b",
+                    "raw_notes": "Raw notes B",
+                    "synthesized_summary": "Summary B",
+                },
+            ],
+        },
+    )
+    assert batch_response.status_code == 200
+    assert len(batch_response.json()["items"]) == 4
+
+    knowledge_response = client.get("/knowledge", params={"project_id": project_id})
+    payload = knowledge_response.json()
+    assert "workflow_handoff_methods" in payload["research_groups"]
+    assert "competitor_and_adjacent_products" in payload["research_groups"]
+
+
+def test_decision_registry_can_update_status() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Track decision status changes.",
+            "initial_prompt": "Need a decision governance surface.",
+            "project_name": "Decision Demo",
+        },
+    )
+    project_id = bootstrap_response.json()["project_id"]
+
+    decisions_response = client.get(f"/projects/{project_id}/decisions")
+    assert decisions_response.status_code == 200
+    assert "Decision Registry" in decisions_response.text
+
+    project_payload = client.get("/project", params={"project_id": project_id}).json()
+    decision_id = project_payload["state"]["decisions"][0]["decision_id"]
+    update_response = client.post(
+        f"/projects/{project_id}/decisions/{decision_id}",
+        json={"status": "deferred"},
+    )
+    assert update_response.status_code == 200
+    assert update_response.json()["status"] == "deferred"
+
+    decisions_payload = client.get(f"/projects/{project_id}/decisions").text
+    assert "deferred" in decisions_payload
+
+
 def test_project_dashboard_shows_governance_and_task_board_link() -> None:
     bootstrap_response = client.post(
         "/projects/bootstrap",

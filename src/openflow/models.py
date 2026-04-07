@@ -200,3 +200,12 @@ class ResearchPackIngestRequest(BaseModel):
     adoption_status: str = "proposed"
     reliability: str = "medium"
     relevance: str = "high"
+
+
+class ResearchPackBatchIngestRequest(BaseModel):
+    project_id: str
+    packs: List[ResearchPackIngestRequest] = Field(default_factory=list)
+
+
+class DecisionUpdateRequest(BaseModel):
+    status: str

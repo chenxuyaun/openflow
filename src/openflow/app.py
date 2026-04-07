@@ -19,18 +19,23 @@ from openflow.service import (
     complete_project_session,
     create_project,
     create_project_session,
+    get_project_decisions,
     get_project_knowledge,
     get_project_session_detail,
     get_project_state,
     get_project_tasks,
     get_project_timeline,
     get_project_workflow,
+    ingest_project_research_pack_batch,
     ingest_project_research_pack,
     review_project_handoff,
+    update_project_decision,
 )
 from openflow.models import (
     BootstrapRequest,
+    DecisionUpdateRequest,
     HandoffReviewRequest,
+    ResearchPackBatchIngestRequest,
     ResearchPackIngestRequest,
     SessionCompleteRequest,
     SessionCreateRequest,
@@ -143,6 +148,16 @@ def ingest_research_pack(request: ResearchPackIngestRequest) -> dict[str, object
     return ingest_project_research_pack(request)
 
 
+@app.post("/research-packs/batch")
+def ingest_research_pack_batch(request: ResearchPackBatchIngestRequest) -> dict[str, object]:
+    return ingest_project_research_pack_batch(request)
+
+
+@app.post("/projects/{project_id}/decisions/{decision_id}")
+def update_decision(project_id: str, decision_id: str, request: DecisionUpdateRequest) -> dict[str, object]:
+    return update_project_decision(project_id, decision_id, request)
+
+
 @app.post("/projects/{project_id}/handoffs/{handoff_id}/advance")
 def advance_handoff_from_page(project_id: str, handoff_id: str):
     result = advance_project_handoff(handoff_id)
@@ -227,6 +242,33 @@ def knowledge_page(project_id: str, request: Request):
     )
 
 
+@app.get("/projects/{project_id}/decisions")
+def decision_page(project_id: str, request: Request):
+    payload = get_project_decisions(project_id)
+    return templates.TemplateResponse(
+        request,
+        "decisions.html",
+        {
+            "title": f"Decisions {project_id}",
+            "project_id": project_id,
+            "payload": payload,
+        },
+    )
+
+
+@app.post("/projects/{project_id}/decisions/{decision_id}/update")
+def update_decision_from_page(
+    project_id: str,
+    decision_id: str,
+    status: str = Form(...),
+):
+    update_project_decision(project_id, decision_id, DecisionUpdateRequest(status=status))
+    return RedirectResponse(
+        url=f"/projects/{project_id}/decisions",
+        status_code=303,
+    )
+
+
 @app.post("/projects/{project_id}/research-packs")
 def ingest_research_pack_from_page(
     project_id: str,
@@ -256,6 +298,61 @@ def ingest_research_pack_from_page(
             relevance=relevance,
         )
     )
+    return RedirectResponse(
+        url=f"/projects/{project_id}/knowledge",
+        status_code=303,
+    )
+
+
+@app.post("/projects/{project_id}/research-packs/batch")
+def ingest_research_pack_batch_from_page(
+    project_id: str,
+    batch_payload: str = Form(...),
+):
+    packs = []
+    current: dict[str, object] = {}
+    for raw_line in batch_payload.splitlines():
+        line = raw_line.strip()
+        if not line:
+            if current:
+                packs.append(
+                    ResearchPackIngestRequest(
+                        project_id=project_id,
+                        pack_title=str(current.get("pack_title", "Batch pack")),
+                        source_family=str(current.get("source_family", "workflow_handoff_methods")),
+                        source_ref=str(current.get("source_ref", "batch-input")),
+                        raw_notes=str(current.get("raw_notes", "")),
+                        synthesized_summary=str(current.get("synthesized_summary", "")),
+                        themes=[item.strip() for item in str(current.get("themes", "")).split(",") if item.strip()],
+                        decision_ids=[item.strip() for item in str(current.get("decision_ids", "")).split(",") if item.strip()],
+                        adoption_status=str(current.get("adoption_status", "proposed")),
+                        reliability=str(current.get("reliability", "medium")),
+                        relevance=str(current.get("relevance", "high")),
+                    )
+                )
+                current = {}
+            continue
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        current[key.strip()] = value.strip()
+    if current:
+        packs.append(
+            ResearchPackIngestRequest(
+                project_id=project_id,
+                pack_title=str(current.get("pack_title", "Batch pack")),
+                source_family=str(current.get("source_family", "workflow_handoff_methods")),
+                source_ref=str(current.get("source_ref", "batch-input")),
+                raw_notes=str(current.get("raw_notes", "")),
+                synthesized_summary=str(current.get("synthesized_summary", "")),
+                themes=[item.strip() for item in str(current.get("themes", "")).split(",") if item.strip()],
+                decision_ids=[item.strip() for item in str(current.get("decision_ids", "")).split(",") if item.strip()],
+                adoption_status=str(current.get("adoption_status", "proposed")),
+                reliability=str(current.get("reliability", "medium")),
+                relevance=str(current.get("relevance", "high")),
+            )
+        )
+    ingest_project_research_pack_batch(ResearchPackBatchIngestRequest(project_id=project_id, packs=packs))
     return RedirectResponse(
         url=f"/projects/{project_id}/knowledge",
         status_code=303,

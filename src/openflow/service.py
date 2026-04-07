@@ -6,11 +6,13 @@ from pathlib import Path
 from openflow.repository import OpenFlowRepository
 from openflow.models import (
     BootstrapRequest,
+    DecisionUpdateRequest,
     DecisionRecord,
     HandoffRecord,
     HandoffReviewRequest,
     KnowledgeItem,
     ProjectState,
+    ResearchPackBatchIngestRequest,
     ResearchPackIngestRequest,
     RoleInstanceSpec,
     SessionCompleteRequest,
@@ -227,6 +229,18 @@ def review_project_handoff(handoff_id: str, request: HandoffReviewRequest) -> di
 
 def ingest_project_research_pack(request: ResearchPackIngestRequest) -> dict[str, object]:
     return repository.ingest_research_pack(request)
+
+
+def ingest_project_research_pack_batch(request: ResearchPackBatchIngestRequest) -> dict[str, object]:
+    return repository.ingest_research_pack_batch(request)
+
+
+def get_project_decisions(project_id: str) -> dict[str, object]:
+    return repository.get_project_decisions(project_id)
+
+
+def update_project_decision(project_id: str, decision_id: str, request: DecisionUpdateRequest) -> dict[str, object]:
+    return repository.update_decision(project_id, decision_id, request)
 
 
 def get_project_state(project_id: str) -> dict[str, object]:

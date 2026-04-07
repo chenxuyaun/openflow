@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <div class="eyebrow">Decision Registry</div>
+  <h1>Decisions for {{ project_id }}</h1>
+  <p class="muted">Track decision status, rationale, and supporting research from one governance surface.</p>
+  <p><a href="/projects/{{ project_id }}/knowledge">Back to Knowledge Center</a></p>
+</section>
+
+<section class="panel">
+  <h2>Decision Registry</h2>
+  {% for item in payload.decisions %}
+  <div class="list-card">
+    <strong>{{ item.title }}</strong>
+    <p class="muted">{{ item.decision_id }} · {{ item.status }}</p>
+    <p>{{ item.rationale }}</p>
+    {% if item.supporting_knowledge %}
+      {% for support in item.supporting_knowledge %}
+      <p class="muted">{{ support.entry_kind }} · {{ support.title }} · {{ support.adoption_status }}</p>
+      {% endfor %}
+    {% else %}
+    <p class="muted">No linked research items yet.</p>
+    {% endif %}
+    <form method="post" action="/projects/{{ project_id }}/decisions/{{ item.decision_id }}/update">
+      <p><label>Status
+        <select name="status">
+          <option value="proposed" {% if item.status == "proposed" %}selected{% endif %}>proposed</option>
+          <option value="adopted" {% if item.status == "adopted" %}selected{% endif %}>adopted</option>
+          <option value="rejected" {% if item.status == "rejected" %}selected{% endif %}>rejected</option>
+          <option value="deferred" {% if item.status == "deferred" %}selected{% endif %}>deferred</option>
+        </select>
+      </label></p>
+      <p><button type="submit">Update Decision Status</button></p>
+    </form>
+  </div>
+  {% endfor %}
+</section>
+{% endblock %}

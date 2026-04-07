@@ -12,11 +12,13 @@ from datetime import datetime, timezone
 
 from openflow.models import (
     BootstrapRequest,
+    DecisionUpdateRequest,
     DecisionRecord,
     HandoffRecord,
     HandoffReviewRequest,
     KnowledgeItem,
     ProjectState,
+    ResearchPackBatchIngestRequest,
     ResearchPackIngestRequest,
     RoleInstanceSpec,
     SessionCompleteRequest,
@@ -782,6 +784,15 @@ class OpenFlowRepository:
                 ],
             )
 
+    def _decision_file(self, project_id: str) -> Path:
+        return self._project_dir(project_id) / "decisions.json"
+
+    def _normalize_decision_status(self, status: str) -> str:
+        normalized = status.strip().lower()
+        if normalized == "accepted":
+            return "adopted"
+        return normalized
+
     def ingest_research_pack(self, request: ResearchPackIngestRequest) -> dict[str, object]:
         pack_slug = self._slug(request.pack_title)
         raw_item = KnowledgeItem(
@@ -822,6 +833,59 @@ class OpenFlowRepository:
                 synthesized_item.model_dump(mode="json"),
             ],
         }
+
+    def ingest_research_pack_batch(self, request: ResearchPackBatchIngestRequest) -> dict[str, object]:
+        items = []
+        for pack in request.packs:
+            normalized_pack = ResearchPackIngestRequest(
+                project_id=request.project_id,
+                pack_title=pack.pack_title,
+                source_family=pack.source_family,
+                source_ref=pack.source_ref,
+                raw_notes=pack.raw_notes,
+                synthesized_summary=pack.synthesized_summary,
+                themes=pack.themes,
+                decision_ids=pack.decision_ids,
+                adoption_status=pack.adoption_status,
+                reliability=pack.reliability,
+                relevance=pack.relevance,
+            )
+            result = self.ingest_research_pack(normalized_pack)
+            items.extend(result["items"])
+        return {"project_id": request.project_id, "items": items}
+
+    def get_project_decisions(self, project_id: str) -> dict[str, object]:
+        state = self.get_project_state(project_id)
+        decision_support = self._decision_support_map(state.knowledge_items, state.decisions)
+        return {
+            "project_id": project_id,
+            "decisions": decision_support,
+        }
+
+    def update_decision(self, project_id: str, decision_id: str, request: DecisionUpdateRequest) -> dict[str, object]:
+        allowed = {"proposed", "adopted", "rejected", "deferred"}
+        normalized_status = self._normalize_decision_status(request.status)
+        if normalized_status not in allowed:
+            raise ValueError(f"Unsupported decision status: {request.status}")
+        decisions = [
+            DecisionRecord.model_validate(item)
+            for item in self._read_json(self._decision_file(project_id))
+        ]
+        updated = None
+        for decision in decisions:
+            if decision.decision_id == decision_id:
+                decision.status = normalized_status
+                updated = decision
+                break
+        if updated is None:
+            raise FileNotFoundError(f"Unknown decision: {decision_id}")
+        self._write_json(self._decision_file(project_id), [item.model_dump(mode="json") for item in decisions])
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO decisions(decision_id, project_id, title, status) VALUES (?, ?, ?, ?)",
+                (updated.decision_id, project_id, updated.title, updated.status),
+            )
+        return updated.model_dump(mode="json")
 
     def _apply_review_action_to_tasks(
         self,
