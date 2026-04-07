@@ -53,7 +53,17 @@
     {% else %}
     <div class="list-card">
       <strong>No suggested next step yet</strong>
-      <p class="muted">Open the workspace overview to inspect the current state or start a work step manually.</p>
+      <p class="muted">OpenFlow has organized the workspace, but there is no ready-made next handoff yet. Start the first work step here.</p>
+    </div>
+    <div class="list-card">
+      <strong>Start First Work Step</strong>
+      <p class="muted">This creates the first practical step from the current workspace state.</p>
+      <form method="post" action="/projects/{{ project_id }}/sessions">
+        <p><label>Who should work on this first?<br /><input type="text" name="role_name" style="width:100%" value="{{ first_step_defaults.role_name }}" /></label></p>
+        <p><label>What should this first step accomplish?<br /><textarea name="objective" style="width:100%;min-height:90px">{{ first_step_defaults.objective }}</textarea></label></p>
+        <p><label>Which materials should it read first?<br /><textarea name="input_files" style="width:100%;min-height:90px">{{ first_step_defaults.input_files }}</textarea></label></p>
+        <p><button type="submit">Start First Work Step</button></p>
+      </form>
     </div>
     {% endif %}
   </article>

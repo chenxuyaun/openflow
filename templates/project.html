@@ -5,6 +5,7 @@
   <h1>{{ summary.project.project_name }}</h1>
   <p>{{ summary.project.goal }}</p>
   <p class="muted">Project ID: <code>{{ project_id }}</code></p>
+  <p><a href="/projects/{{ project_id }}/welcome">Open Welcome Guide</a></p>
   <div class="statline">
     <div class="stat">Work type: {{ summary.state.project_type_label }}</div>
     <div class="stat">Current progress: {{ summary.governance.latest_review }}</div>

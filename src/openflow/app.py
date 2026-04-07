@@ -217,6 +217,11 @@ def welcome_page(project_id: str, request: Request):
             "title": f"Welcome {project_id}",
             "project_id": project_id,
             "summary": summary,
+            "first_step_defaults": {
+                "role_name": "Implementation Lead",
+                "objective": "Start the first practical step for this workspace and move the project toward a visible next result.",
+                "input_files": f"projects/{project_id}/workflow_graph.json",
+            },
         },
     )
 

@@ -185,6 +185,7 @@ def test_read_only_pages_render_real_project_data() -> None:
     assert "Workspace Ready" in welcome_response.text
     assert "Open Workspace Overview" in welcome_response.text
     assert "Suggested Next Step" in welcome_response.text
+    assert "Start First Work Step" in welcome_response.text or "Start Suggested Next Step" in welcome_response.text
 
     project_response = client.get(f"/projects/{project_id}")
     assert project_response.status_code == 200
@@ -192,6 +193,7 @@ def test_read_only_pages_render_real_project_data() -> None:
     assert "Workspace Overview" in project_response.text
     assert "Current Goal" in project_response.text
     assert "Advanced Workspace Tools" in project_response.text
+    assert "Open Welcome Guide" in project_response.text
 
     knowledge_response = client.get(f"/projects/{project_id}/knowledge")
     assert knowledge_response.status_code == 200
@@ -310,7 +312,19 @@ def test_form_driven_project_flow_and_transcript_summary() -> None:
     welcome_response = client.get(project_url)
     assert welcome_response.status_code == 200
     assert "Workspace Ready" in welcome_response.text
-    assert "Start Suggested Next Step" in welcome_response.text or "No suggested next step yet" in welcome_response.text
+    assert "Start First Work Step" in welcome_response.text or "Start Suggested Next Step" in welcome_response.text
+
+    welcome_start_response = client.post(
+        f"/projects/{project_id}/sessions",
+        data={
+            "role_name": "Implementation Lead",
+            "objective": "Start the first practical step for this workspace and move the project toward a visible next result.",
+            "input_files": f"projects/{project_id}/workflow_graph.json",
+        },
+        follow_redirects=False,
+    )
+    assert welcome_start_response.status_code == 303
+    assert "/sessions/" in welcome_start_response.headers["location"]
 
     session_create_response = client.post(
         f"/projects/{project_id}/sessions",
@@ -634,6 +648,37 @@ def test_welcome_page_handles_confirm_gated_next_step() -> None:
     welcome_response = client.get(f"/projects/{project_id}/welcome")
     assert welcome_response.status_code == 200
     assert "needs an advanced review before it can start" in welcome_response.text
+
+
+def test_welcome_page_can_start_first_work_step_when_no_next_step_exists() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Create a project with no ready-made next step.",
+            "initial_prompt": "Bootstrap the workspace and leave the first step to be started manually.",
+            "project_name": "Welcome Start Demo",
+        },
+    )
+    project_id = bootstrap_response.json()["project_id"]
+
+    welcome_response = client.get(f"/projects/{project_id}/welcome")
+    assert welcome_response.status_code == 200
+    assert "Start First Work Step" in welcome_response.text
+
+    start_response = client.post(
+        f"/projects/{project_id}/sessions",
+        data={
+            "role_name": "Implementation Lead",
+            "objective": "Start the first practical step for this workspace and move the project toward a visible next result.",
+            "input_files": f"projects/{project_id}/workflow_graph.json",
+        },
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+    session_location = start_response.headers["location"]
+    session_page = client.get(session_location)
+    assert session_page.status_code == 200
+    assert "Work Step Detail" in session_page.text
 
 
 def test_changes_requested_reactivates_task_with_governance_reason() -> None:
