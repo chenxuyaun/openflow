@@ -3,7 +3,7 @@
 <section class="hero">
   <div class="eyebrow">Materials Center</div>
   <h1>Materials for {{ project_id }}</h1>
-  <p class="muted">Files, research packs, preserved notes, and project knowledge stay visible here.</p>
+  <p class="muted">Files, organized sources, preserved notes, and project knowledge stay visible here.</p>
   <div class="statline">
     <div class="stat">Knowledge items: {{ payload.materials.knowledge_count }}</div>
     <div class="stat">Organized materials: {{ payload.materials.organized_material_count }}</div>
@@ -14,6 +14,39 @@
 </section>
 
 <section class="grid">
+  <article class="panel">
+    <h2>Find Materials</h2>
+    <form method="get" action="/projects/{{ project_id }}/knowledge">
+      <p><label>Search<br /><input type="text" name="q" style="width:100%" value="{{ payload.filters.q }}" /></label></p>
+      <p><label>Material group<br />
+        <select name="source_family" style="width:100%">
+          <option value="">All groups</option>
+          {% for value in payload.available_filter_values.source_families %}
+          <option value="{{ value }}" {% if payload.filters.source_family == value %}selected{% endif %}>{{ value }}</option>
+          {% endfor %}
+        </select>
+      </label></p>
+      <p><label>Material kind<br />
+        <select name="entry_kind" style="width:100%">
+          <option value="">All kinds</option>
+          {% for value in payload.available_filter_values.entry_kinds %}
+          <option value="{{ value }}" {% if payload.filters.entry_kind == value %}selected{% endif %}>{{ value }}</option>
+          {% endfor %}
+        </select>
+      </label></p>
+      <p><label>Adoption status<br />
+        <select name="adoption_status" style="width:100%">
+          <option value="">All statuses</option>
+          {% for value in payload.available_filter_values.adoption_statuses %}
+          <option value="{{ value }}" {% if payload.filters.adoption_status == value %}selected{% endif %}>{{ value }}</option>
+          {% endfor %}
+        </select>
+      </label></p>
+      <p><label><input type="checkbox" name="linked_only" value="true" {% if payload.filters.linked_only %}checked{% endif %} /> Only show decision-linked materials</label></p>
+      <p><button type="submit">Apply Filters</button></p>
+    </form>
+    <p class="muted">Showing {{ payload.filtered_count }} filtered items.</p>
+  </article>
   <article class="panel">
     <h2>Evolution Feed</h2>
     {% for item in payload.evolution_feed %}
@@ -26,7 +59,22 @@
     {% endfor %}
   </article>
   <article class="panel">
-    <h2>Research Packs</h2>
+    <h2>Grouped Materials</h2>
+    {% if payload.grouped_views %}
+      {% for group_name, items in payload.grouped_views.items() %}
+      <div class="list-card">
+        <strong>{{ group_name }}</strong>
+        {% for item in items %}
+        <p>{{ item.title }}</p>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    {% else %}
+    <p class="muted">No materials match the current filters.</p>
+    {% endif %}
+  </article>
+  <article class="panel">
+    <h2>Source Groups</h2>
     {% if payload.research_groups %}
       {% for family, items in payload.research_groups.items() %}
       <div class="list-card">

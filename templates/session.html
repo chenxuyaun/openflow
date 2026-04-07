@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 {% set handoff = payload.handoff %}
+{% set recommendation = payload.recommendation %}
 {% set review_needed = payload.next_step.state == "review_needed" %}
 <section class="hero">
   <div class="eyebrow">Work Step Detail</div>
@@ -9,6 +10,7 @@
   <p class="muted">Session ID: <code>{{ payload.session.session_id }}</code></p>
   <div class="statline">
     <div class="stat">Fresh step</div>
+    <div class="stat">Stage: {{ payload.project_stage }}</div>
     <div class="stat">Materials declared: {{ payload.session.input_files|length }}</div>
     <div class="stat">Notes captured: {{ payload.transcript|length }}</div>
     <div class="stat">Suggested next step ready: {{ "yes" if payload.handoff else "no" }}</div>
@@ -72,12 +74,15 @@
   </article>
   <article class="panel">
     <h2>Saved Result And Next Step</h2>
-    {% if handoff %}
     <div class="list-card">
-      <strong>{{ handoff.next_role_recommendation }}</strong>
-      <p>{{ handoff.next_role_reason }}</p>
-      <p class="muted">Why this next step is recommended: {{ handoff.next_role_reason }}</p>
+      <strong>{{ recommendation.recommended_role }}</strong>
+      <p>{{ recommendation.recommended_reason }}</p>
+      <p class="muted">Why this next step is recommended: {{ recommendation.recommended_reason }}</p>
       <p>{{ payload.next_step.message }}</p>
+      {% if recommendation.secondary_note %}
+      <p class="muted">{{ recommendation.secondary_note }}</p>
+      {% endif %}
+      {% if handoff %}
       {% if review_needed %}
       <p class="muted">Choose continue, request another pass, or send it back for replanning.</p>
       <form method="post" action="/projects/{{ project_id }}/handoffs/{{ handoff.handoff_id }}/review">
@@ -111,10 +116,14 @@
       {% if handoff.followup_actions %}
       <p>Follow-up: {{ handoff.followup_actions|join(", ") }}</p>
       {% endif %}
+      {% else %}
+      {% if payload.next_step.state == "research_gap" %}
+      <p><a href="/projects/{{ project_id }}/knowledge#organize-materials">{{ payload.next_step.primary_label }}</a></p>
+      {% else %}
+      <p class="muted">No saved outcome has been written yet.</p>
+      {% endif %}
+      {% endif %}
     </div>
-    {% else %}
-    <p class="muted">No saved outcome has been written yet.</p>
-    {% endif %}
   </article>
 </section>
 

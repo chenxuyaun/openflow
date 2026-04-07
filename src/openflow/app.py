@@ -256,8 +256,23 @@ def create_session_from_page(
 
 
 @app.get("/projects/{project_id}/knowledge")
-def knowledge_page(project_id: str, request: Request):
-    payload = get_project_knowledge(project_id)
+def knowledge_page(
+    project_id: str,
+    request: Request,
+    q: Optional[str] = Query(default=None),
+    source_family: Optional[str] = Query(default=None),
+    entry_kind: Optional[str] = Query(default=None),
+    adoption_status: Optional[str] = Query(default=None),
+    linked_only: bool = Query(default=False),
+):
+    payload = get_project_knowledge(
+        project_id,
+        q=q,
+        source_family=source_family,
+        entry_kind=entry_kind,
+        adoption_status=adoption_status,
+        linked_only=linked_only,
+    )
     return templates.TemplateResponse(
         request,
         "knowledge.html",

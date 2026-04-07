@@ -559,11 +559,17 @@ class OpenFlowRepository:
             if item.source_family != "project_memory" or item.entry_kind != "derived"
         ]
         research_groups = sorted({item.source_family for item in research_items})
+        raw_count = sum(1 for item in research_items if item.entry_kind == "raw_source")
+        synthesized_count = sum(1 for item in research_items if item.entry_kind == "synthesized_insight")
+        linked_count = sum(1 for item in research_items if item.decision_ids)
         return {
             "knowledge_count": len(state.knowledge_items),
             "organized_material_count": len(research_items),
             "research_group_count": len(research_groups),
             "research_groups": research_groups,
+            "raw_source_count": raw_count,
+            "synthesized_count": synthesized_count,
+            "linked_count": linked_count,
             "summary": (
                 f"{len(research_items)} organized materials across {len(research_groups)} groups."
                 if research_items
@@ -571,17 +577,184 @@ class OpenFlowRepository:
             ),
         }
 
+    def _sort_knowledge_items(self, items: list[KnowledgeItem]) -> list[KnowledgeItem]:
+        return sorted(
+            items,
+            key=lambda item: (
+                item.generated_at,
+                1 if item.entry_kind == "synthesized_insight" else 0,
+            ),
+            reverse=True,
+        )
+
+    def _filter_knowledge_items(
+        self,
+        items: list[KnowledgeItem],
+        q: Optional[str] = None,
+        source_family: Optional[str] = None,
+        entry_kind: Optional[str] = None,
+        adoption_status: Optional[str] = None,
+        linked_only: bool = False,
+    ) -> list[KnowledgeItem]:
+        filtered = items
+        if source_family:
+            filtered = [item for item in filtered if item.source_family == source_family]
+        if entry_kind:
+            filtered = [item for item in filtered if item.entry_kind == entry_kind]
+        if adoption_status:
+            filtered = [item for item in filtered if item.adoption_status == adoption_status]
+        if linked_only:
+            filtered = [item for item in filtered if item.decision_ids]
+        if q:
+            q_lower = q.lower()
+            filtered = [
+                item
+                for item in filtered
+                if q_lower in item.title.lower()
+                or q_lower in item.summary.lower()
+                or q_lower in item.source_ref.lower()
+                or any(q_lower in theme.lower() for theme in item.themes)
+            ]
+        return self._sort_knowledge_items(filtered)
+
+    def _knowledge_filter_values(self, items: list[KnowledgeItem]) -> dict[str, list[str]]:
+        return {
+            "source_families": sorted({item.source_family for item in items}),
+            "entry_kinds": sorted({item.entry_kind for item in items}),
+            "adoption_statuses": sorted({item.adoption_status for item in items}),
+        }
+
+    def _grouped_knowledge_views(self, items: list[KnowledgeItem]) -> dict[str, list[dict[str, object]]]:
+        grouped: dict[str, list[dict[str, object]]] = {}
+        for item in items:
+            key = f"{item.source_family} | {item.entry_kind} | {item.adoption_status}"
+            grouped.setdefault(key, []).append(item.model_dump(mode="json"))
+        return grouped
+
+    def _project_stage(
+        self,
+        state: ProjectState,
+        latest_handoff: Optional[HandoffRecord],
+        governance: dict[str, object],
+    ) -> str:
+        if governance.get("confirm_waiting"):
+            return "review"
+        if latest_handoff and latest_handoff.acceptance_status == "replan_required":
+            return "replan"
+        if any(task.blocked_reason for task in state.task_tree):
+            return "execution"
+        if latest_handoff:
+            return "execution"
+        if state.project_mode == "research" or any(role.role_name == "Research Curator" for role in state.role_catalog):
+            return "research_consolidation"
+        return "bootstrap"
+
+    def _recommendation_view(
+        self,
+        state: ProjectState,
+        latest_handoff: Optional[HandoffRecord],
+        governance: dict[str, object],
+        materials: dict[str, object],
+        blocked_now: Optional[str],
+    ) -> dict[str, object]:
+        if governance.get("confirm_waiting") and latest_handoff:
+            return {
+                "recommended_role": latest_handoff.next_role_recommendation,
+                "recommended_reason": latest_handoff.next_role_reason,
+                "recommended_action": "continue_review",
+                "recommendation_confidence": "high",
+                "recommendation_source": "confirm_gate",
+                "secondary_note": "Review is required before the next step can continue.",
+            }
+        if latest_handoff and latest_handoff.acceptance_status == "replan_required":
+            next_role = "Research Curator" if any(role.role_name == "Research Curator" for role in state.role_catalog) else "Bootstrap Strategist"
+            return {
+                "recommended_role": next_role,
+                "recommended_reason": latest_handoff.review_note or latest_handoff.next_role_reason,
+                "recommended_action": "replan",
+                "recommendation_confidence": "high",
+                "recommendation_source": "review_replan",
+                "secondary_note": "The last review sent the project back for replanning.",
+            }
+        if latest_handoff and latest_handoff.acceptance_status == "changes_requested":
+            return {
+                "recommended_role": latest_handoff.next_role_recommendation,
+                "recommended_reason": latest_handoff.review_note or latest_handoff.next_role_reason,
+                "recommended_action": "needs_changes",
+                "recommendation_confidence": "high",
+                "recommendation_source": "review_changes_requested",
+                "secondary_note": "The last review requested another execution pass before moving on.",
+            }
+        if blocked_now:
+            blocked_task = next((task for task in state.task_tree if task.blocked_reason), None)
+            return {
+                "recommended_role": blocked_task.owner_role if blocked_task else (latest_handoff.next_role_recommendation if latest_handoff else state.role_catalog[0].role_name),
+                "recommended_reason": blocked_now,
+                "recommended_action": "open_details",
+                "recommendation_confidence": "medium",
+                "recommendation_source": "blocked_task",
+                "secondary_note": "A blocked task is currently preventing a cleaner next-step recommendation.",
+            }
+        if latest_handoff:
+            return {
+                "recommended_role": latest_handoff.next_role_recommendation,
+                "recommended_reason": latest_handoff.next_role_reason,
+                "recommended_action": "start",
+                "recommendation_confidence": "high",
+                "recommendation_source": "latest_handoff",
+                "secondary_note": "This recommendation comes from the latest completed handoff.",
+            }
+        research_role_exists = any(role.role_name == "Research Curator" for role in state.role_catalog)
+        if research_role_exists and materials["organized_material_count"] > 0 and materials["raw_source_count"] >= materials["synthesized_count"]:
+            return {
+                "recommended_role": "Research Curator",
+                "recommended_reason": "This workspace has more raw source material than reusable synthesis and should consolidate the materials first.",
+                "recommended_action": "organize_materials",
+                "recommendation_confidence": "medium",
+                "recommendation_source": "raw_material_gap",
+                "secondary_note": f"Raw sources: {materials['raw_source_count']} | Synthesized insights: {materials['synthesized_count']}.",
+            }
+        if research_role_exists and state.project_mode == "research":
+            secondary_note = f"Current organized materials: {materials['organized_material_count']}."
+            if materials["linked_count"] > 0:
+                secondary_note = f"{secondary_note} Decision-linked materials: {materials['linked_count']}."
+            return {
+                "recommended_role": "Research Curator",
+                "recommended_reason": "This workspace is research-led and should organize materials before the next execution step.",
+                "recommended_action": "organize_materials",
+                "recommendation_confidence": "medium",
+                "recommendation_source": "project_mode_research",
+                "secondary_note": secondary_note,
+            }
+        first_role = state.role_catalog[0].role_name if state.role_catalog else "Implementation Lead"
+        return {
+            "recommended_role": first_role,
+            "recommended_reason": "No handoff exists yet, so the workspace should start the first executable step.",
+            "recommended_action": "start_first_step",
+            "recommendation_confidence": "medium",
+            "recommendation_source": "bootstrap_fallback",
+            "secondary_note": "This is the first role available from the current project state.",
+        }
+
     def _next_step_view(
         self,
         latest_handoff: Optional[HandoffRecord],
         governance: dict[str, object],
+        recommendation: dict[str, object],
     ) -> dict[str, object]:
         if not latest_handoff:
+            if recommendation["recommended_action"] == "organize_materials":
+                return {
+                    "state": "research_gap",
+                    "message": "This workspace should organize materials before the next execution step.",
+                    "actions": ["organize_materials"],
+                    "primary_label": "Organize Materials",
+                }
             return {
                 "state": "none",
                 "message": "No suggested next step has been written yet.",
-                "actions": [],
-                "primary_label": None,
+                "actions": ["start_first_step"],
+                "primary_label": "Start First Work Step",
             }
         if governance.get("confirm_waiting"):
             return {
@@ -1297,15 +1470,17 @@ class OpenFlowRepository:
                 break
         timeline = self.get_project_timeline(project_id)
         governance = self._governance_summary(state, latest_handoff)
-        next_step = self._next_step_view(latest_handoff, governance)
-        materials = self._materials_summary(state)
-        next_role = latest_handoff.next_role_recommendation if latest_handoff else (state.role_catalog[0].role_name if state.role_catalog else None)
-        why_next_role = latest_handoff.next_role_reason if latest_handoff else "Bootstrap created the first role from the initial request."
         blocked_now = None
         for task in state.task_tree:
             if task.blocked_reason:
                 blocked_now = task.blocked_reason
                 break
+        materials = self._materials_summary(state)
+        recommendation = self._recommendation_view(state, latest_handoff, governance, materials, blocked_now)
+        next_step = self._next_step_view(latest_handoff, governance, recommendation)
+        project_stage = self._project_stage(state, latest_handoff, governance)
+        next_role = recommendation["recommended_role"]
+        why_next_role = recommendation["recommended_reason"]
         return {
             "project_id": project_id,
             "project": project_meta,
@@ -1314,6 +1489,8 @@ class OpenFlowRepository:
             "latest_handoff": latest_handoff.model_dump(mode="json") if latest_handoff else None,
             "timeline": timeline["events"],
             "governance": governance,
+            "project_stage": project_stage,
+            "recommendation": recommendation,
             "next_step": next_step,
             "materials": materials,
             "next_role": next_role,
@@ -1321,7 +1498,15 @@ class OpenFlowRepository:
             "blocked_now": blocked_now,
         }
 
-    def get_project_knowledge(self, project_id: str) -> dict[str, object]:
+    def get_project_knowledge(
+        self,
+        project_id: str,
+        q: Optional[str] = None,
+        source_family: Optional[str] = None,
+        entry_kind: Optional[str] = None,
+        adoption_status: Optional[str] = None,
+        linked_only: bool = False,
+    ) -> dict[str, object]:
         state = self.get_project_state(project_id)
         project_files = []
         for path in sorted(self._project_dir(project_id).rglob("*")):
@@ -1331,27 +1516,42 @@ class OpenFlowRepository:
                 except ValueError:
                     display_path = path
                 project_files.append(str(display_path).replace("\\", "/"))
-        sorted_items = sorted(
+        sorted_items = self._sort_knowledge_items(state.knowledge_items)
+        filtered_items = self._filter_knowledge_items(
             state.knowledge_items,
-            key=lambda item: item.generated_at,
-            reverse=True,
+            q=q,
+            source_family=source_family,
+            entry_kind=entry_kind,
+            adoption_status=adoption_status,
+            linked_only=linked_only,
         )
-        research_packs = [item for item in sorted_items if item.source_family != "project_memory" or item.entry_kind != "derived"]
+        research_packs = [item for item in filtered_items if item.source_family != "project_memory" or item.entry_kind != "derived"]
         grouped_research: dict[str, list[dict[str, object]]] = {}
         for item in research_packs:
             grouped_research.setdefault(item.source_family, []).append(item.model_dump(mode="json"))
         decision_support = self._decision_support_map(state.knowledge_items, state.decisions)
         materials = self._materials_summary(state)
+        available_filter_values = self._knowledge_filter_values(state.knowledge_items)
         return {
             "project_id": project_id,
             "blueprint_documents": self._blueprint_documents(),
-            "knowledge_items": [item.model_dump(mode="json") for item in state.knowledge_items],
+            "knowledge_items": [item.model_dump(mode="json") for item in filtered_items],
             "evolution_feed": [item.model_dump(mode="json") for item in sorted_items],
             "decisions": [item.model_dump(mode="json") for item in state.decisions],
             "project_files": project_files,
             "research_groups": grouped_research,
+            "grouped_views": self._grouped_knowledge_views(research_packs),
             "decision_support": decision_support,
             "materials": materials,
+            "filtered_count": len(filtered_items),
+            "filters": {
+                "q": q or "",
+                "source_family": source_family or "",
+                "entry_kind": entry_kind or "",
+                "adoption_status": adoption_status or "",
+                "linked_only": linked_only,
+            },
+            "available_filter_values": available_filter_values,
             "organize_defaults": {
                 "pack_title": "Collected source review",
                 "source_family": "workflow_handoff_methods",
@@ -1507,12 +1707,20 @@ class OpenFlowRepository:
                     prior_handoff = candidate
         if prior_handoff:
             why_exists = f"This session exists because handoff {prior_handoff.handoff_id} recommended {session.role_name}: {prior_handoff.next_role_reason}"
-        governance = self._governance_summary(self.get_project_state(project_id), handoff)
-        next_step = self._next_step_view(handoff, governance) if handoff else {
-            "state": "none",
-            "message": "No saved outcome has been written yet.",
-            "actions": [],
-            "primary_label": None,
+        state = self.get_project_state(project_id)
+        governance = self._governance_summary(state, handoff)
+        blocked_now = None
+        for task in state.task_tree:
+            if task.blocked_reason:
+                blocked_now = task.blocked_reason
+                break
+        materials = self._materials_summary(state)
+        recommendation = self._recommendation_view(state, handoff, governance, materials, blocked_now)
+        next_step = self._next_step_view(handoff, governance, recommendation) if handoff else {
+            "state": recommendation["recommended_action"] == "organize_materials" and "research_gap" or "none",
+            "message": recommendation["recommended_reason"] if recommendation["recommended_action"] == "organize_materials" else "No saved outcome has been written yet.",
+            "actions": ["organize_materials"] if recommendation["recommended_action"] == "organize_materials" else ["start_first_step"],
+            "primary_label": "Organize Materials" if recommendation["recommended_action"] == "organize_materials" else "Start First Work Step",
         }
         return {
             "project_id": project_id,
@@ -1521,6 +1729,8 @@ class OpenFlowRepository:
             "transcript": transcript,
             "role_policy": role_policy,
             "why_exists": why_exists,
+            "project_stage": self._project_stage(state, handoff, governance),
+            "recommendation": recommendation,
             "review_state": next_step["state"],
             "review_feedback_message": self._review_feedback_message(handoff.acceptance_status if handoff else None),
             "next_step": next_step,

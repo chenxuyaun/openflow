@@ -540,7 +540,8 @@ def test_research_pack_ingest_creates_raw_and_synthesized_items() -> None:
     assert knowledge_page.status_code == 200
     assert "Organize Materials" in knowledge_page.text
     assert "Organize Many Materials At Once" in knowledge_page.text
-    assert "Research Packs" in knowledge_page.text
+    assert "Grouped Materials" in knowledge_page.text
+    assert "Source Groups" in knowledge_page.text
     assert "Decisions Influenced By Research" in knowledge_page.text
 
 
@@ -587,6 +588,50 @@ def test_batch_research_pack_ingest_groups_multiple_packs() -> None:
     assert "workflow_handoff_methods" in payload["research_groups"]
     assert "competitor_and_adjacent_products" in payload["research_groups"]
     assert payload["materials"]["research_group_count"] >= 2
+
+
+def test_knowledge_page_supports_search_and_filters() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Organize and search knowledge materials.",
+            "initial_prompt": "Need a workspace with searchable materials and decision-linked notes.",
+            "project_name": "Knowledge Filter Demo",
+        },
+    )
+    project_id = bootstrap_response.json()["project_id"]
+    project_payload = client.get("/project", params={"project_id": project_id}).json()
+    decision_id = project_payload["state"]["decisions"][0]["decision_id"]
+
+    ingest_response = client.post(
+        "/research-packs",
+        json={
+            "project_id": project_id,
+            "pack_title": "Decision-linked workflow review",
+            "source_family": "workflow_handoff_methods",
+            "source_ref": "search-notes",
+            "raw_notes": "Raw notes for searchable workflow review.",
+            "synthesized_summary": "Workflow summary linked to a decision.",
+            "decision_ids": [decision_id],
+            "adoption_status": "adopted",
+        },
+    )
+    assert ingest_response.status_code == 200
+
+    filtered_page = client.get(
+        f"/projects/{project_id}/knowledge",
+        params={
+            "q": "decision-linked",
+            "source_family": "workflow_handoff_methods",
+            "entry_kind": "synthesized_insight",
+            "adoption_status": "adopted",
+            "linked_only": "true",
+        },
+    )
+    assert filtered_page.status_code == 200
+    assert "Showing 1 filtered items." in filtered_page.text
+    assert "Decision-linked workflow review synthesized insight" in filtered_page.text
+    assert "Only show decision-linked materials" in filtered_page.text
 
 
 def test_decision_registry_can_update_status() -> None:
@@ -730,6 +775,59 @@ def test_welcome_page_can_start_first_work_step_when_no_next_step_exists() -> No
     assert "Work Step Detail" in session_page.text
 
 
+def test_research_project_recommends_organizing_materials_first() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Collect research and organize sources into reusable knowledge.",
+            "initial_prompt": "Need a research-heavy workspace that should organize materials before execution.",
+            "project_name": "Research Recommendation Demo",
+        },
+    )
+    project_id = bootstrap_response.json()["project_id"]
+
+    project_page = client.get(f"/projects/{project_id}")
+    assert project_page.status_code == 200
+    assert "Research Curator" in project_page.text
+    assert "This workspace should organize materials before the next execution step." in project_page.text
+    assert "Organize Materials" in project_page.text
+
+    welcome_page = client.get(f"/projects/{project_id}/welcome")
+    assert welcome_page.status_code == 200
+    assert "Research Curator" in welcome_page.text
+    assert "Organize Materials" in welcome_page.text
+
+
+def test_research_project_with_more_raw_than_synthesized_keeps_curator_recommendation() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Collect research and organize sources into reusable knowledge.",
+            "initial_prompt": "Need a research-heavy workspace that should organize materials before execution.",
+            "project_name": "Raw Gap Demo",
+        },
+    )
+    project_id = bootstrap_response.json()["project_id"]
+
+    ingest_response = client.post(
+        "/research-packs",
+        json={
+            "project_id": project_id,
+            "pack_title": "Raw-heavy source review",
+            "source_family": "workflow_handoff_methods",
+            "source_ref": "raw-gap-notes",
+            "raw_notes": "Raw-heavy notes for the recommendation engine.",
+            "synthesized_summary": "Short synthesis.",
+        },
+    )
+    assert ingest_response.status_code == 200
+
+    project_page = client.get(f"/projects/{project_id}")
+    assert project_page.status_code == 200
+    assert "Research Curator" in project_page.text
+    assert "Raw sources:" in project_page.text
+
+
 def test_session_page_shows_feedback_after_completion_and_after_advance() -> None:
     landing_response = client.post(
         "/",
@@ -826,6 +924,41 @@ def test_changes_requested_reactivates_task_with_governance_reason() -> None:
     session_page = client.get(f"/projects/{project_id}/sessions/{session_id}")
     assert session_page.status_code == 200
     assert "Review note:" in session_page.text
+
+
+def test_replan_required_updates_recommendation_to_replan_role() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Build a workflow that will require replanning.",
+            "initial_prompt": "Create a workflow that hands off into System Architect for confirmation.",
+            "project_name": "Replan Recommendation Demo",
+        },
+    )
+    session_id = bootstrap_response.json()["session_id"]
+    project_id = bootstrap_response.json()["project_id"]
+
+    complete_response = client.post(
+        f"/sessions/{session_id}/complete",
+        json={
+            "session_summary": "Bootstrap complete.",
+            "next_role_recommendation": "System Architect",
+            "next_role_reason": "Architecture confirmation is needed.",
+            "acceptance_status": "pending_review",
+        },
+    )
+    handoff_id = complete_response.json()["handoff_id"]
+
+    review_response = client.post(
+        f"/handoffs/{handoff_id}/review",
+        json={"action": "replan_required", "note": "The direction should be replanned before execution continues."},
+    )
+    assert review_response.status_code == 200
+
+    project_page = client.get(f"/projects/{project_id}")
+    assert project_page.status_code == 200
+    assert "The direction should be replanned before execution continues." in project_page.text
+    assert "Research Curator" in project_page.text or "Bootstrap Strategist" in project_page.text
 
 
 def test_session_review_form_redirects_back_with_feedback() -> None:

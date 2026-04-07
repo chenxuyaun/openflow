@@ -2,6 +2,7 @@
 {% block content %}
 {% set handoff = summary.latest_handoff %}
 {% set next_step = summary.next_step %}
+{% set recommendation = summary.recommendation %}
 <section class="hero">
   <div class="eyebrow">Workspace Ready</div>
   <h1>{{ summary.project.project_name }} is ready to continue.</h1>
@@ -9,6 +10,7 @@
   <p class="muted">Your goal, materials, and progress are now saved so every fresh session can continue from records instead of guesswork.</p>
   <div class="statline">
     <div class="stat">Work type: {{ summary.state.project_type_label }}</div>
+    <div class="stat">Stage: {{ summary.project_stage }}</div>
     <div class="stat">Organized materials: {{ summary.materials.organized_material_count }}</div>
     <div class="stat">Current progress: {{ summary.governance.latest_review }}</div>
     <div class="stat">Next owner: {{ summary.next_role or "n/a" }}</div>
@@ -42,10 +44,13 @@
     </div>
     {% if handoff %}
     <div class="list-card">
-      <strong>{{ handoff.next_role_recommendation }}</strong>
-      <p>{{ handoff.next_role_reason }}</p>
+      <strong>{{ recommendation.recommended_role }}</strong>
+      <p>{{ recommendation.recommended_reason }}</p>
       <p class="muted">Why the system recommends this: {{ summary.why_next_role }}</p>
       <p>{{ next_step.message }}</p>
+      {% if recommendation.secondary_note %}
+      <p class="muted">{{ recommendation.secondary_note }}</p>
+      {% endif %}
       {% if next_step.state == "review_needed" %}
       <p class="muted">This next step needs review before it can continue. Open the workspace if you want to review it now.</p>
       <p><a href="/projects/{{ project_id }}">Open Workspace</a></p>
@@ -59,9 +64,17 @@
     </div>
     {% else %}
     <div class="list-card">
-      <strong>No suggested next step yet</strong>
-      <p class="muted">OpenFlow has organized the workspace, but there is no ready-made next handoff yet. Start the first work step here.</p>
+      <strong>{{ recommendation.recommended_role }}</strong>
+      <p>{{ recommendation.recommended_reason }}</p>
+      <p class="muted">{{ recommendation.secondary_note }}</p>
     </div>
+    {% if next_step.state == "research_gap" %}
+    <div class="list-card">
+      <strong>Organize Materials</strong>
+      <p class="muted">OpenFlow recommends organizing materials before starting the next execution step.</p>
+      <p><a href="/projects/{{ project_id }}/knowledge#organize-materials">Organize Materials</a></p>
+    </div>
+    {% else %}
     <div class="list-card">
       <strong>Start First Work Step</strong>
       <p class="muted">This creates the first practical step from the current workspace state.</p>
@@ -72,6 +85,7 @@
         <p><button type="submit">Start First Work Step</button></p>
       </form>
     </div>
+    {% endif %}
     {% endif %}
   </article>
 </section>

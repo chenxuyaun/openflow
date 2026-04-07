@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 {% set handoff = summary.latest_handoff %}
+{% set recommendation = summary.recommendation %}
 {% set review_needed = summary.next_step.state == "review_needed" %}
 <section class="hero">
   <div class="eyebrow">Workspace Overview</div>
@@ -10,6 +11,7 @@
   <p><a href="/projects/{{ project_id }}/welcome">Open Welcome Guide</a></p>
   <div class="statline">
     <div class="stat">Work type: {{ summary.state.project_type_label }}</div>
+    <div class="stat">Stage: {{ summary.project_stage }}</div>
     <div class="stat">Current progress: {{ summary.governance.latest_review }}</div>
     <div class="stat">Suggested next owner: {{ summary.next_role or "n/a" }}</div>
     <div class="stat">Organized materials: {{ summary.materials.organized_material_count }}</div>
@@ -58,12 +60,14 @@
     <p class="muted">No session exists yet.</p>
     {% endif %}
     <h2>Suggested Next Step</h2>
-    {% if handoff %}
     <div class="list-card">
-      <strong>{{ handoff.next_role_recommendation }}</strong>
-      <p class="muted">{{ handoff.next_role_reason }}</p>
+      <strong>{{ recommendation.recommended_role }}</strong>
+      <p class="muted">{{ recommendation.recommended_reason }}</p>
       <p class="muted">Why the system recommends this: {{ summary.why_next_role }}</p>
       <p>{{ summary.next_step.message }}</p>
+      {% if recommendation.secondary_note %}
+      <p class="muted">{{ recommendation.secondary_note }}</p>
+      {% endif %}
       {% if review_needed %}
       <p class="muted">Use ordinary work language here: continue if ready, ask for changes if it needs another pass, or replan if the direction itself is wrong.</p>
       <form method="post" action="/projects/{{ project_id }}/handoffs/{{ handoff.handoff_id }}/review">
@@ -79,15 +83,18 @@
       <form method="post" action="/projects/{{ project_id }}/handoffs/{{ handoff.handoff_id }}/advance">
         <p><button type="submit">{{ summary.next_step.primary_label }}</button></p>
       </form>
+      {% elif summary.next_step.state == "research_gap" %}
+      <p><a href="/projects/{{ project_id }}/knowledge#organize-materials">{{ summary.next_step.primary_label }}</a></p>
+      {% elif summary.next_step.state == "none" %}
+      <p class="muted">No handoff is ready yet. Start the first work step from the workspace or organize materials first.</p>
       {% endif %}
+      {% if handoff %}
       <p class="muted">Advanced status: {{ handoff.acceptance_status or "not_set" }} | Review: {{ handoff.review_outcome or "not_set" }}</p>
       {% if handoff.review_note %}
       <p class="muted">Latest review note: {{ handoff.review_note }}</p>
       {% endif %}
+      {% endif %}
     </div>
-    {% else %}
-    <p class="muted">No suggested next step has been written yet.</p>
-    {% endif %}
   </article>
 </section>
 

@@ -250,8 +250,22 @@ def get_project_state(project_id: str) -> dict[str, object]:
     return repository.get_project_summary(project_id)
 
 
-def get_project_knowledge(project_id: str) -> dict[str, object]:
-    return repository.get_project_knowledge(project_id)
+def get_project_knowledge(
+    project_id: str,
+    q: str | None = None,
+    source_family: str | None = None,
+    entry_kind: str | None = None,
+    adoption_status: str | None = None,
+    linked_only: bool = False,
+) -> dict[str, object]:
+    return repository.get_project_knowledge(
+        project_id,
+        q=q,
+        source_family=source_family,
+        entry_kind=entry_kind,
+        adoption_status=adoption_status,
+        linked_only=linked_only,
+    )
 
 
 def get_project_workflow(project_id: str) -> dict[str, object]:
