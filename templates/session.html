@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
+{% set handoff = payload.handoff %}
+{% set review_needed = handoff and handoff.acceptance_status != "approved" and payload.role_policy == "confirm" %}
 <section class="hero">
   <div class="eyebrow">Work Step Detail</div>
   <h1>{{ payload.session.role_name }}</h1>
@@ -28,6 +30,22 @@
     <p class="muted">This is now the active step. The saved materials and handoff details from the previous session are already attached here.</p>
   </div>
   {% endif %}
+  {% if review_status == "approved" %}
+  <div class="list-card">
+    <strong>Review complete.</strong>
+    <p class="muted">This next step is approved and ready to continue.</p>
+  </div>
+  {% elif review_status == "changes_requested" %}
+  <div class="list-card">
+    <strong>Review complete.</strong>
+    <p class="muted">Another pass is needed before this work moves forward.</p>
+  </div>
+  {% elif review_status == "replan_required" %}
+  <div class="list-card">
+    <strong>Review complete.</strong>
+    <p class="muted">The next step should be replanned before work continues.</p>
+  </div>
+  {% endif %}
 </section>
 
 <section class="grid">
@@ -48,30 +66,54 @@
   </article>
   <article class="panel">
     <h2>Saved Result And Next Step</h2>
-    {% if payload.handoff %}
+    {% if handoff %}
     <div class="list-card">
-      <strong>{{ payload.handoff.next_role_recommendation }}</strong>
-      <p>{{ payload.handoff.next_role_reason }}</p>
-      <p class="muted">Why this next step is recommended: {{ payload.handoff.next_role_reason }}</p>
-      <p class="muted">Advanced status: {{ payload.handoff.acceptance_status or "not_set" }} | Review: {{ payload.handoff.review_outcome or "not_set" }}</p>
-      {% if payload.handoff.review_note %}
-      <p class="muted">Review note: {{ payload.handoff.review_note }}</p>
-      {% endif %}
-      {% if payload.handoff.resulting_role %}
-      <p class="muted">Resulting role: {{ payload.handoff.resulting_role }}</p>
-      {% endif %}
-      {% if payload.handoff.success_criteria %}
-      <p>What success looks like next: {{ payload.handoff.success_criteria|join(", ") }}</p>
-      {% endif %}
-      {% if payload.handoff.risks %}
-      <p>Risks: {{ payload.handoff.risks|join(", ") }}</p>
-      {% endif %}
-      {% if payload.handoff.followup_actions %}
-      <p>Follow-up: {{ payload.handoff.followup_actions|join(", ") }}</p>
-      {% endif %}
-      <form method="post" action="/projects/{{ project_id }}/handoffs/{{ payload.handoff.handoff_id }}/advance">
+      <strong>{{ handoff.next_role_recommendation }}</strong>
+      <p>{{ handoff.next_role_reason }}</p>
+      <p class="muted">Why this next step is recommended: {{ handoff.next_role_reason }}</p>
+      {% if review_needed %}
+      <p>This next step needs a review before it can start.</p>
+      <p class="muted">Choose continue, request another pass, or send it back for replanning.</p>
+      <form method="post" action="/projects/{{ project_id }}/handoffs/{{ handoff.handoff_id }}/review">
+        <input type="hidden" name="return_to" value="session" />
+        <input type="hidden" name="session_id" value="{{ payload.session.session_id }}" />
+        <p><label>Review note<br /><textarea name="note" style="width:100%;min-height:70px">Record what should happen next before this step continues.</textarea></label></p>
+        <p>
+          <button type="submit" name="action" value="approve">Continue</button>
+          <button type="submit" name="action" value="changes_requested">Needs Changes</button>
+          <button type="submit" name="action" value="replan_required">Replan</button>
+        </p>
+      </form>
+      {% elif handoff.acceptance_status == "approved" %}
+      <p>This next step is approved and ready to start.</p>
+      <form method="post" action="/projects/{{ project_id }}/handoffs/{{ handoff.handoff_id }}/advance">
         <p><button type="submit">Start Suggested Next Step</button></p>
       </form>
+      {% elif handoff.acceptance_status == "changes_requested" %}
+      <p>This work needs another pass before moving on.</p>
+      {% elif handoff.acceptance_status == "replan_required" %}
+      <p>This work should be replanned before moving on.</p>
+      {% else %}
+      <form method="post" action="/projects/{{ project_id }}/handoffs/{{ handoff.handoff_id }}/advance">
+        <p><button type="submit">Start Suggested Next Step</button></p>
+      </form>
+      {% endif %}
+      <p class="muted">Advanced status: {{ handoff.acceptance_status or "not_set" }} | Review: {{ handoff.review_outcome or "not_set" }}</p>
+      {% if handoff.review_note %}
+      <p class="muted">Review note: {{ handoff.review_note }}</p>
+      {% endif %}
+      {% if handoff.resulting_role %}
+      <p class="muted">Resulting role: {{ handoff.resulting_role }}</p>
+      {% endif %}
+      {% if handoff.success_criteria %}
+      <p>What success looks like next: {{ handoff.success_criteria|join(", ") }}</p>
+      {% endif %}
+      {% if handoff.risks %}
+      <p>Risks: {{ handoff.risks|join(", ") }}</p>
+      {% endif %}
+      {% if handoff.followup_actions %}
+      <p>Follow-up: {{ handoff.followup_actions|join(", ") }}</p>
+      {% endif %}
     </div>
     {% else %}
     <p class="muted">No saved outcome has been written yet.</p>
@@ -101,18 +143,10 @@ Decide whether to advance</textarea></label></p>
   </form>
 </section>
 
-{% if payload.handoff and payload.handoff.acceptance_status != "approved" and payload.role_policy == "confirm" %}
+{% if review_needed %}
 <section class="panel">
-  <h2>Advanced Review Controls</h2>
-  <p class="muted">Use this area only when the next step requires a confirm gate review.</p>
-  <form method="post" action="/projects/{{ project_id }}/handoffs/{{ payload.handoff.handoff_id }}/review">
-    <p><label>Review note<br /><textarea name="note" style="width:100%;min-height:70px">Review this handoff before allowing the next session.</textarea></label></p>
-    <p>
-      <button type="submit" name="action" value="approve">Approve</button>
-      <button type="submit" name="action" value="changes_requested">Request Changes</button>
-      <button type="submit" name="action" value="replan_required">Send To Replan</button>
-    </p>
-  </form>
+  <h2>Advanced Review Details</h2>
+  <p class="muted">The review action is available above in the main next-step card. This section keeps the governance context secondary.</p>
 </section>
 {% endif %}
 {% endblock %}

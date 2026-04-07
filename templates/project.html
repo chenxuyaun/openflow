@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
+{% set handoff = summary.latest_handoff %}
+{% set review_needed = summary.governance.confirm_waiting and handoff and summary.governance.pending_handoff_id == handoff.handoff_id %}
 <section class="hero">
   <div class="eyebrow">Workspace Overview</div>
   <h1>{{ summary.project.project_name }}</h1>
@@ -13,9 +15,15 @@
     <div class="stat">Current style: {{ summary.state.collaboration_style }}</div>
   </div>
   {% if handoff_status == "waiting_confirmation" %}
-  <p class="muted">A protected next step is waiting for approval in the advanced tools area.</p>
+  <p class="muted">The next suggested step is waiting for a confirmation review before it can start.</p>
   {% endif %}
-  {% if handoff_status and handoff_status != "waiting_confirmation" %}
+  {% if review_status == "approved" %}
+  <p class="muted">Review complete. This next step is approved and ready to continue.</p>
+  {% elif review_status == "changes_requested" %}
+  <p class="muted">Review complete. Another pass is needed before this work moves forward.</p>
+  {% elif review_status == "replan_required" %}
+  <p class="muted">Review complete. The workspace should replan the next step before continuing.</p>
+  {% elif handoff_status and handoff_status != "waiting_confirmation" %}
   <p class="muted">Latest advanced action: {{ handoff_status }}</p>
   {% endif %}
 </section>
@@ -45,15 +53,41 @@
     <p class="muted">No session exists yet.</p>
     {% endif %}
     <h2>Suggested Next Step</h2>
-    {% if summary.latest_handoff %}
+    {% if handoff %}
     <div class="list-card">
-      <strong>{{ summary.latest_handoff.next_role_recommendation }}</strong>
-      <p class="muted">{{ summary.latest_handoff.next_role_reason }}</p>
+      <strong>{{ handoff.next_role_recommendation }}</strong>
+      <p class="muted">{{ handoff.next_role_reason }}</p>
       <p class="muted">Why the system recommends this: {{ summary.why_next_role }}</p>
-      <p class="muted">Advanced status: {{ summary.latest_handoff.acceptance_status or "not_set" }} | Review: {{ summary.latest_handoff.review_outcome or "not_set" }}</p>
-      <form method="post" action="/projects/{{ project_id }}/handoffs/{{ summary.latest_handoff.handoff_id }}/advance">
+      {% if review_needed %}
+      <p>This next step needs a review before it can start.</p>
+      <p class="muted">Use ordinary work language here: continue if ready, ask for changes if it needs another pass, or replan if the direction itself is wrong.</p>
+      <form method="post" action="/projects/{{ project_id }}/handoffs/{{ handoff.handoff_id }}/review">
+        <input type="hidden" name="return_to" value="project" />
+        <p><label>Review note<br /><textarea name="note" style="width:100%;min-height:70px">Record what should happen next before this step continues.</textarea></label></p>
+        <p>
+          <button type="submit" name="action" value="approve">Continue</button>
+          <button type="submit" name="action" value="changes_requested">Needs Changes</button>
+          <button type="submit" name="action" value="replan_required">Replan</button>
+        </p>
+      </form>
+      {% elif handoff.acceptance_status == "approved" %}
+      <p>This next step is approved and ready to start.</p>
+      <form method="post" action="/projects/{{ project_id }}/handoffs/{{ handoff.handoff_id }}/advance">
         <p><button type="submit">Start Suggested Next Step</button></p>
       </form>
+      {% elif handoff.acceptance_status == "changes_requested" %}
+      <p>This work needs another pass before moving on.</p>
+      {% elif handoff.acceptance_status == "replan_required" %}
+      <p>This work should be replanned before moving on.</p>
+      {% else %}
+      <form method="post" action="/projects/{{ project_id }}/handoffs/{{ handoff.handoff_id }}/advance">
+        <p><button type="submit">Start Suggested Next Step</button></p>
+      </form>
+      {% endif %}
+      <p class="muted">Advanced status: {{ handoff.acceptance_status or "not_set" }} | Review: {{ handoff.review_outcome or "not_set" }}</p>
+      {% if handoff.review_note %}
+      <p class="muted">Latest review note: {{ handoff.review_note }}</p>
+      {% endif %}
     </div>
     {% else %}
     <p class="muted">No suggested next step has been written yet.</p>
@@ -95,19 +129,8 @@
     <a href="/projects/{{ project_id }}/tasks">Work Board (Task Board)</a> |
     <a href="/projects/{{ project_id }}/knowledge">Materials And Insights</a>
   </p>
-  {% if summary.governance.confirm_waiting and summary.latest_handoff and summary.governance.pending_handoff_id == summary.latest_handoff.handoff_id %}
-  <div class="list-card">
-    <strong>Review-required next step</strong>
-    <p class="muted">This next step is behind a confirm gate.</p>
-    <form method="post" action="/projects/{{ project_id }}/handoffs/{{ summary.latest_handoff.handoff_id }}/review">
-      <p><label>Review note<br /><textarea name="note" style="width:100%;min-height:70px">Approve or return this next step from the advanced tools area.</textarea></label></p>
-      <p>
-        <button type="submit" name="action" value="approve">Approve</button>
-        <button type="submit" name="action" value="changes_requested">Request Changes</button>
-        <button type="submit" name="action" value="replan_required">Send To Replan</button>
-      </p>
-    </form>
-  </div>
+  {% if review_needed %}
+  <p class="muted">The review controls are surfaced in Suggested Next Step so the main path stays visible.</p>
   {% endif %}
 </section>
 

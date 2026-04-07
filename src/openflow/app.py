@@ -179,13 +179,20 @@ def review_handoff_from_page(
     handoff_id: str,
     action: str = Form(...),
     note: str = Form(""),
+    return_to: str = Form("project"),
+    session_id: str = Form(""),
 ):
     result = review_project_handoff(
         handoff_id,
         HandoffReviewRequest(action=action, note=note or None),
     )
+    review_status = result["acceptance_status"]
+    if return_to == "session" and session_id:
+        url = f"/projects/{project_id}/sessions/{session_id}?review_status={review_status}"
+    else:
+        url = f"/projects/{project_id}?review_status={review_status}"
     return RedirectResponse(
-        url=f"/projects/{project_id}?handoff_status={result['acceptance_status']}",
+        url=url,
         status_code=303,
     )
 
@@ -203,6 +210,7 @@ def project_page(project_id: str, request: Request):
             "summary": summary,
             "timeline": timeline["events"],
             "handoff_status": request.query_params.get("handoff_status"),
+            "review_status": request.query_params.get("review_status"),
         },
     )
 
@@ -418,6 +426,7 @@ def session_page(project_id: str, session_id: str, request: Request):
             "payload": payload,
             "handoff_status": request.query_params.get("handoff_status"),
             "completed": request.query_params.get("completed"),
+            "review_status": request.query_params.get("review_status"),
         },
     )
 

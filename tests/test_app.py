@@ -194,6 +194,7 @@ def test_read_only_pages_render_real_project_data() -> None:
     assert "Current Goal" in project_response.text
     assert "Advanced Workspace Tools" in project_response.text
     assert "Open Welcome Guide" in project_response.text
+    assert "Suggested Next Step" in project_response.text
 
     knowledge_response = client.get(f"/projects/{project_id}/knowledge")
     assert knowledge_response.status_code == 200
@@ -490,6 +491,10 @@ def test_confirm_gate_review_can_approve_and_then_advance() -> None:
     assert "approved" in project_page.text
     assert "Why This Step Is Recommended" in project_page.text
 
+    reviewed_project_page = client.get(f"/projects/{project_id}?review_status=approved")
+    assert reviewed_project_page.status_code == 200
+    assert "Review complete. This next step is approved and ready to continue." in reviewed_project_page.text
+
 
 def test_research_pack_ingest_creates_raw_and_synthesized_items() -> None:
     bootstrap_response = client.post(
@@ -626,6 +631,38 @@ def test_project_dashboard_shows_governance_and_task_board_link() -> None:
     assert "Suggested Next Step" in project_page.text
     assert "Why This Step Is Recommended" in project_page.text
     assert "Work type:" in project_page.text
+
+
+def test_project_page_surfaces_confirm_review_in_main_path() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Create a project with a review-blocked next step.",
+            "initial_prompt": "Create a workflow that hands off into System Architect for confirmation.",
+            "project_name": "Main Path Review Demo",
+        },
+    )
+    session_id = bootstrap_response.json()["session_id"]
+    project_id = bootstrap_response.json()["project_id"]
+
+    complete_response = client.post(
+        f"/sessions/{session_id}/complete",
+        json={
+            "session_summary": "Bootstrap complete.",
+            "next_role_recommendation": "System Architect",
+            "next_role_reason": "Architecture confirmation is required.",
+            "acceptance_status": "pending_review",
+        },
+    )
+    assert complete_response.status_code == 200
+
+    project_page = client.get(f"/projects/{project_id}")
+    assert project_page.status_code == 200
+    assert "This next step needs a review before it can start." in project_page.text
+    assert "Continue" in project_page.text
+    assert "Needs Changes" in project_page.text
+    assert "Replan" in project_page.text
+    assert "The review controls are surfaced in Suggested Next Step so the main path stays visible." in project_page.text
 
 
 def test_welcome_page_handles_confirm_gated_next_step() -> None:
@@ -783,6 +820,51 @@ def test_changes_requested_reactivates_task_with_governance_reason() -> None:
     session_page = client.get(f"/projects/{project_id}/sessions/{session_id}")
     assert session_page.status_code == 200
     assert "Review note:" in session_page.text
+
+
+def test_session_review_form_redirects_back_with_feedback() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Keep review feedback on the current session page.",
+            "initial_prompt": "Create a workflow that hands off into System Architect for confirmation.",
+            "project_name": "Session Review Feedback Demo",
+        },
+    )
+    session_id = bootstrap_response.json()["session_id"]
+    project_id = bootstrap_response.json()["project_id"]
+
+    complete_response = client.post(
+        f"/sessions/{session_id}/complete",
+        json={
+            "session_summary": "Bootstrap complete.",
+            "next_role_recommendation": "System Architect",
+            "next_role_reason": "Architecture confirmation is required.",
+            "acceptance_status": "pending_review",
+        },
+    )
+    handoff_id = complete_response.json()["handoff_id"]
+
+    review_response = client.post(
+        f"/projects/{project_id}/handoffs/{handoff_id}/review",
+        data={
+            "action": "changes_requested",
+            "note": "Tighten the architecture package before continuing.",
+            "return_to": "session",
+            "session_id": session_id,
+        },
+        follow_redirects=False,
+    )
+    assert review_response.status_code == 303
+    assert review_response.headers["location"].endswith(
+        f"/projects/{project_id}/sessions/{session_id}?review_status=changes_requested"
+    )
+
+    session_page = client.get(review_response.headers["location"])
+    assert session_page.status_code == 200
+    assert "Review complete." in session_page.text
+    assert "Another pass is needed before this work moves forward." in session_page.text
+    assert "Tighten the architecture package before continuing." in session_page.text
 
 
 def test_timeline_includes_because_explanations() -> None:
