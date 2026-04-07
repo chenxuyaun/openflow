@@ -357,6 +357,12 @@ def test_form_driven_project_flow_and_transcript_summary() -> None:
         follow_redirects=False,
     )
     assert complete_response.status_code == 303
+    assert complete_response.headers["location"].endswith(f"/projects/{project_id}/sessions/{session_id}?completed=1")
+
+    completed_session_page = client.get(complete_response.headers["location"])
+    assert completed_session_page.status_code == 200
+    assert "This step has been saved." in completed_session_page.text
+    assert "Start Suggested Next Step" in completed_session_page.text
 
     knowledge_response = client.get(f"/projects/{project_id}/knowledge")
     assert knowledge_response.status_code == 200
@@ -679,6 +685,66 @@ def test_welcome_page_can_start_first_work_step_when_no_next_step_exists() -> No
     session_page = client.get(session_location)
     assert session_page.status_code == 200
     assert "Work Step Detail" in session_page.text
+
+
+def test_session_page_shows_feedback_after_completion_and_after_advance() -> None:
+    landing_response = client.post(
+        "/",
+        data={
+            "project_name": "Feedback Demo",
+            "goal": "Close the feedback loop after a work step is completed.",
+            "initial_prompt": "Create a project with a clear next-step handoff experience.",
+        },
+        follow_redirects=False,
+    )
+    assert landing_response.status_code == 303
+    project_id = landing_response.headers["location"].split("/")[-2]
+
+    session_create_response = client.post(
+        f"/projects/{project_id}/sessions",
+        data={
+            "role_name": "Implementation Lead",
+            "objective": "Complete the first visible execution step.",
+            "input_files": f"projects/{project_id}/workflow_graph.json",
+        },
+        follow_redirects=False,
+    )
+    assert session_create_response.status_code == 303
+    session_url = session_create_response.headers["location"]
+    session_id = session_url.rsplit("/", 1)[-1]
+
+    complete_response = client.post(
+        f"/projects/{project_id}/sessions/{session_id}/complete",
+        data={
+            "session_summary": "Completed the first execution step.",
+            "next_role_recommendation": "Review Operator",
+            "next_role_reason": "Review should continue next.",
+            "required_input_files": f"projects/{project_id}/sessions/{session_id}/handoff.json",
+            "success_criteria": "Review the execution output",
+            "risks": "May require refinement",
+            "followup_actions": "Start the review step",
+        },
+        follow_redirects=False,
+    )
+    assert complete_response.status_code == 303
+
+    completed_page = client.get(complete_response.headers["location"])
+    assert completed_page.status_code == 200
+    assert "This step has been saved." in completed_page.text
+    assert "What should happen next:" in completed_page.text
+    assert "Start Suggested Next Step" in completed_page.text
+
+    project_payload = client.get("/project", params={"project_id": project_id}).json()
+    handoff_id = project_payload["latest_handoff"]["handoff_id"]
+    advance_response = client.post(
+        f"/projects/{project_id}/handoffs/{handoff_id}/advance",
+        follow_redirects=False,
+    )
+    assert advance_response.status_code == 303
+
+    next_session_page = client.get(advance_response.headers["location"])
+    assert next_session_page.status_code == 200
+    assert "The previous step handed work to this session." in next_session_page.text
 
 
 def test_changes_requested_reactivates_task_with_governance_reason() -> None:

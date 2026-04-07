@@ -12,8 +12,21 @@
     <div class="stat">Suggested next step ready: {{ "yes" if payload.handoff else "no" }}</div>
   </div>
   <p class="muted">{{ payload.why_exists }}</p>
+  {% if completed == "1" %}
+  <div class="list-card">
+    <strong>This step has been saved.</strong>
+    <p class="muted">OpenFlow recorded the result, prepared the suggested next step, and kept the materials attached to this session.</p>
+    {% if payload.handoff %}
+    <p><strong>What should happen next:</strong> {{ payload.handoff.next_role_recommendation }}</p>
+    <p class="muted">{{ payload.handoff.next_role_reason }}</p>
+    {% endif %}
+  </div>
+  {% endif %}
   {% if handoff_status == "advanced" %}
-  <p class="muted">Handoff advanced and the next session was created.</p>
+  <div class="list-card">
+    <strong>The previous step handed work to this session.</strong>
+    <p class="muted">This is now the active step. The saved materials and handoff details from the previous session are already attached here.</p>
+  </div>
   {% endif %}
 </section>
 
@@ -34,11 +47,12 @@
     <p class="muted">This work step starts from saved materials and records, not inherited hidden chat context.</p>
   </article>
   <article class="panel">
-    <h2>Saved Outcome</h2>
+    <h2>Saved Result And Next Step</h2>
     {% if payload.handoff %}
     <div class="list-card">
       <strong>{{ payload.handoff.next_role_recommendation }}</strong>
-      <p class="muted">{{ payload.handoff.next_role_reason }}</p>
+      <p>{{ payload.handoff.next_role_reason }}</p>
+      <p class="muted">Why this next step is recommended: {{ payload.handoff.next_role_reason }}</p>
       <p class="muted">Advanced status: {{ payload.handoff.acceptance_status or "not_set" }} | Review: {{ payload.handoff.review_outcome or "not_set" }}</p>
       {% if payload.handoff.review_note %}
       <p class="muted">Review note: {{ payload.handoff.review_note }}</p>

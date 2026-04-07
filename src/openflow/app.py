@@ -417,6 +417,7 @@ def session_page(project_id: str, session_id: str, request: Request):
             "project_id": project_id,
             "payload": payload,
             "handoff_status": request.query_params.get("handoff_status"),
+            "completed": request.query_params.get("completed"),
         },
     )
 
@@ -454,6 +455,6 @@ def complete_session_from_page(
         ),
     )
     return RedirectResponse(
-        url=f"/projects/{project_id}/sessions/{session_id}",
+        url=f"/projects/{project_id}/sessions/{session_id}?completed=1",
         status_code=303,
     )
