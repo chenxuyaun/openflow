@@ -15,6 +15,36 @@ function splitLines(value) {
     .filter(Boolean);
 }
 
+function getModeUi(mode) {
+  const map = {
+    research: {
+      label: "Research Workspace",
+      kicker: "Collect, compare, synthesize",
+      narrative: "Use this when the real problem is scattered materials, weak synthesis, or unclear evidence for the next decision.",
+      highlights: ["broad material intake", "source-to-summary traceability", "evidence-backed next step"],
+    },
+    experience: {
+      label: "Experience Workspace",
+      kicker: "Clarify the journey, reduce friction",
+      narrative: "Use this when the work feels too complex, too technical, or not attractive enough for ordinary users.",
+      highlights: ["simpler first-run flow", "clearer page sequencing", "higher product attraction"],
+    },
+    multimodal: {
+      label: "Multimodal Workspace",
+      kicker: "Connect image, text, planning, execution",
+      narrative: "Use this when the workflow needs to move from multimodal input into a plan, then into runnable execution with preserved continuity.",
+      highlights: ["image-plus-text intake", "plan-to-execution loop", "file-driven continuity"],
+    },
+    delivery: {
+      label: "Delivery Workspace",
+      kicker: "Turn intent into executable work",
+      narrative: "Use this when the work already has enough direction and the main need is clear decomposition, execution, and review.",
+      highlights: ["visible work slices", "role-based execution", "handoff and review loop"],
+    },
+  };
+  return map[mode] || map.delivery;
+}
+
 function statline(items) {
   return `<div class="statline">${items.map((item) => `<div class="stat">${escapeHtml(item)}</div>`).join("")}</div>`;
 }
@@ -99,28 +129,58 @@ function shell(content, projectId = "") {
 
 async function renderLanding() {
   const payload = await apiFetch("/api/app/landing");
+  const presets = payload.mode_presets || [];
+  const defaultMode = payload.defaults.preferred_project_mode || (presets[0] && presets[0].id) || "delivery";
   return `
     <section class="hero">
       <div class="grid grid-hero">
-        <div>
+        <div class="hero-copy">
           <div class="eyebrow">AI Collaboration Workspace</div>
-          <h1>Turn scattered project input into one clear workspace with a next step.</h1>
-          <p class="lede">Start from a goal and the materials you already have. Every new role starts in a fresh session, while continuity stays in files, handoffs, decisions, and project records.</p>
+          <h1>Choose how this work should run before the system starts splitting roles and sessions.</h1>
+          <p class="lede">OpenFlow is not a single long chat. Each role starts fresh. Continuity survives through files, handoffs, knowledge, decisions, and timeline records that every later session can read back.</p>
           ${statline(payload.proof_points)}
+          <div class="hero-note">
+            <strong>What changes here</strong>
+            <p class="muted">Pick a work mode first so the workspace starts with a better first role, better defaults, and less unnecessary complexity.</p>
+          </div>
         </div>
-        <div class="card-grid grid-4">
-          <div class="metric"><strong>Fresh sessions</strong><div class="microcopy">Roles never inherit hidden chat state.</div></div>
-          <div class="metric"><strong>Project memory</strong><div class="microcopy">Continuity stays visible and inspectable.</div></div>
-          <div class="metric"><strong>Recommendation</strong><div class="microcopy">The next step remains explicit.</div></div>
-          <div class="metric"><strong>Recoverability</strong><div class="microcopy">Review, replan, and continue paths stay visible.</div></div>
+        <div class="panel story-panel">
+          <div class="eyebrow">Why It Feels Different</div>
+          <div class="story-list">
+            <div class="story-item"><strong>Fresh sessions</strong><p class="microcopy">Roles never inherit hidden chat state.</p></div>
+            <div class="story-item"><strong>Visible memory</strong><p class="microcopy">Files, decisions, and handoffs stay inspectable.</p></div>
+            <div class="story-item"><strong>Clear next step</strong><p class="microcopy">Recommendations stay tied to project records.</p></div>
+            <div class="story-item"><strong>Recoverable workflow</strong><p class="microcopy">Review, changes, and replan paths remain explicit.</p></div>
+          </div>
         </div>
       </div>
     </section>
     <section class="grid grid-2">
       <article class="panel">
+        <div class="eyebrow">Choose Mode</div>
+        <h2>Start from the kind of work you are actually doing</h2>
+        <div class="mode-grid">
+          ${presets.map((item) => `
+            <button
+              type="button"
+              class="mode-card ${item.id === defaultMode ? "active" : ""}"
+              data-mode-preset="${escapeHtml(item.id)}"
+              data-goal="${escapeHtml(item.goal)}"
+              data-prompt="${escapeHtml(item.initial_prompt)}"
+              data-role="${escapeHtml(item.starter_role)}"
+            >
+              <span class="mode-label">${escapeHtml(item.label)}</span>
+              <strong>${escapeHtml(item.headline)}</strong>
+              <span class="microcopy">${escapeHtml(item.summary)}</span>
+            </button>
+          `).join("")}
+        </div>
+      </article>
+      <article class="panel">
         <div class="eyebrow">Create Workspace</div>
         <h2>Start from the materials you already have</h2>
         <form id="bootstrap-form" class="form-grid">
+          <input type="hidden" name="preferred_project_mode" value="${escapeHtml(defaultMode)}" />
           <div class="field"><label>Workspace name</label><input name="project_name" type="text" value="${escapeHtml(payload.defaults.project_name)}" /></div>
           <div class="field"><label>What should this workspace finish?</label><input name="goal" type="text" value="${escapeHtml(payload.defaults.goal)}" /></div>
           <div class="field"><label>What materials, context, or constraints are already available?</label><textarea name="initial_prompt">${escapeHtml(payload.defaults.initial_prompt)}</textarea></div>
@@ -132,13 +192,18 @@ async function renderLanding() {
       </article>
       <aside class="grid">
         <section class="panel">
-          <div class="eyebrow">Examples</div>
-          <h3>Common starting points</h3>
+          <div class="eyebrow">Common Starts</div>
+          <h3>What people usually bring in</h3>
           ${chips(payload.examples)}
         </section>
         <section class="panel">
+          <div class="eyebrow">What You See Next</div>
+          <p class="muted">After the first submit, the workspace shifts into one main track: current goal, organized materials, current progress, and the suggested next step.</p>
+          ${chips(["Current goal", "Organized materials", "Current progress", "Suggested next step"])}
+        </section>
+        <section class="panel">
           <div class="eyebrow">Advanced Surfaces</div>
-          <p class="muted">The main path stays simple, while workflow, materials, tasks, and governance remain accessible underneath.</p>
+          <p class="muted">The main path stays simple, while workflow, materials, tasks, and governance remain accessible underneath when the project needs them.</p>
           ${chips(payload.blueprint.demo_sections)}
         </section>
       </aside>
@@ -182,6 +247,7 @@ async function renderWelcome(projectId) {
   const recommendation = summary.recommendation;
   const handoff = summary.latest_handoff;
   const nextStep = summary.next_step;
+  const modeUi = getModeUi(summary.state.project_mode);
   const actionArea = handoff && nextStep.state === "ready"
     ? `<button type="button" data-advance-handoff="${handoff.handoff_id}" data-project="${projectId}">Continue Recommended Step</button>
        <a class="button secondary" href="/app/projects/${projectId}" data-nav>Open Workspace</a>`
@@ -205,6 +271,12 @@ async function renderWelcome(projectId) {
     </section>
     <section class="grid grid-2">
       <article class="grid">
+        <section class="panel">
+          <div class="eyebrow">${escapeHtml(modeUi.label)}</div>
+          <h2>${escapeHtml(modeUi.kicker)}</h2>
+          <p class="muted">${escapeHtml(modeUi.narrative)}</p>
+          ${chips(modeUi.highlights)}
+        </section>
         <section class="panel">
           <div class="eyebrow">Suggested Next Step</div>
           <h2>Start where the current records say the work should continue</h2>
@@ -234,6 +306,7 @@ async function renderProject(projectId) {
   const handoff = summary.latest_handoff;
   const recommendation = summary.recommendation;
   const nextStep = summary.next_step;
+  const modeUi = getModeUi(summary.state.project_mode);
   const actionArea = handoff && nextStep.state === "review_needed"
     ? renderReviewForm(projectId, handoff.handoff_id)
     : handoff && nextStep.state === "ready"
@@ -258,6 +331,12 @@ async function renderProject(projectId) {
     </section>
     <section class="grid grid-2">
       <article class="grid">
+        <section class="panel">
+          <div class="eyebrow">${escapeHtml(modeUi.label)}</div>
+          <h2>${escapeHtml(modeUi.kicker)}</h2>
+          <p class="muted">${escapeHtml(modeUi.narrative)}</p>
+          ${chips(modeUi.highlights)}
+        </section>
         <section class="panel">
           <div class="eyebrow">Main Track</div>
           <h2>Suggested Next Step</h2>
@@ -416,6 +495,7 @@ async function renderKnowledge(projectId) {
 
 async function renderTasks(projectId) {
   const { payload } = await apiFetch(`/api/app/projects/${projectId}/tasks`);
+  const modeUi = getModeUi(payload.project_mode);
   return `
     <section class="hero">
       <div class="eyebrow">Work Board</div>
@@ -428,6 +508,11 @@ async function renderTasks(projectId) {
         `Waiting: ${payload.counts.waiting_confirmation}`,
         `Completed: ${payload.counts.completed}`,
       ])}
+    </section>
+    <section class="panel">
+      <div class="eyebrow">${escapeHtml(modeUi.label)}</div>
+      <h2>${escapeHtml(modeUi.kicker)}</h2>
+      <p class="muted">${escapeHtml(modeUi.narrative)}</p>
     </section>
     <section class="panel">
       <div class="eyebrow">What Matters Most Right Now</div>
@@ -515,11 +600,23 @@ function normalizePack(projectId, data) {
 function bindForms() {
   const bootstrapForm = document.getElementById("bootstrap-form");
   if (bootstrapForm) {
+    const applyModePreset = (button) => {
+      document.querySelectorAll("[data-mode-preset]").forEach((item) => item.classList.remove("active"));
+      button.classList.add("active");
+      bootstrapForm.preferred_project_mode.value = button.dataset.modePreset || "delivery";
+      bootstrapForm.goal.value = button.dataset.goal || bootstrapForm.goal.value;
+      bootstrapForm.initial_prompt.value = button.dataset.prompt || bootstrapForm.initial_prompt.value;
+    };
+    document.querySelectorAll("[data-mode-preset]").forEach((button) => {
+      button.addEventListener("click", () => applyModePreset(button));
+    });
     const demoButton = document.getElementById("landing-demo-link");
     demoButton?.addEventListener("click", () => {
-      bootstrapForm.project_name.value = "Research Briefing Workspace";
-      bootstrapForm.goal.value = "Turn scattered research into a briefing and visible execution path.";
-      bootstrapForm.initial_prompt.value = "I have source notes, several reference links, a partial outline, and a review deadline. Organize the materials, preserve key decisions, and recommend the next role.";
+      const activePreset = document.querySelector("[data-mode-preset].active");
+      if (activePreset) {
+        applyModePreset(activePreset);
+      }
+      bootstrapForm.project_name.value = "OpenFlow Demo Workspace";
     });
     bootstrapForm.addEventListener("submit", async (event) => {
       event.preventDefault();

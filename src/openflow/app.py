@@ -65,12 +65,80 @@ def _proof_points() -> list[str]:
     ]
 
 
-def _first_step_defaults(project_id: str) -> dict[str, str]:
-    return {
+def _mode_presets() -> list[dict[str, object]]:
+    return [
+        {
+            "id": "research",
+            "label": "Research",
+            "headline": "Sort broad materials into reusable knowledge.",
+            "summary": "Best for source collection, synthesis, briefs, strategy scans, and evidence-backed decisions.",
+            "goal": "Turn scattered research into a clear briefing and next-step plan.",
+            "initial_prompt": "I have interview notes, reference links, earlier summaries, and open questions. Organize the materials, preserve what matters, and show the next evidence-backed step.",
+            "starter_role": "Research Curator",
+        },
+        {
+            "id": "experience",
+            "label": "Experience",
+            "headline": "Shape a clearer journey before adding more process.",
+            "summary": "Best for product planning, content flows, service design, page journeys, and user experience cleanup.",
+            "goal": "Turn a rough product idea into a clearer user journey and staged execution plan.",
+            "initial_prompt": "The current workflow feels complex and low-attraction. Reframe the experience, reduce friction, and organize the next steps into a cleaner workspace flow.",
+            "starter_role": "Experience Designer",
+        },
+        {
+            "id": "delivery",
+            "label": "Delivery",
+            "headline": "Move from draft material into executable work.",
+            "summary": "Best for implementation, process rollout, operations work, and structured multi-role execution.",
+            "goal": "Turn scattered notes into a deliverable with a visible next-step workflow.",
+            "initial_prompt": "I have draft material, constraints, and partial decisions. Convert this into clear work steps, keep the handoffs visible, and drive execution without losing progress.",
+            "starter_role": "Implementation Lead",
+        },
+        {
+            "id": "multimodal",
+            "label": "Multimodal",
+            "headline": "Connect image, text, planning, and execution in one loop.",
+            "summary": "Best for image-plus-text workflows, multimodal prototypes, and AI systems that need planning and runnable steps.",
+            "goal": "Turn multimodal input into a file-driven plan and executable workflow.",
+            "initial_prompt": "I want an AI workflow that can read image and text inputs, produce a plan, execute the next step, and preserve continuity through files instead of hidden context.",
+            "starter_role": "Implementation Lead",
+        },
+    ]
+
+
+def _first_step_defaults(project_id: str, summary: Optional[dict[str, object]] = None) -> dict[str, str]:
+    state = dict(summary.get("state", {})) if summary else {}
+    project_mode = str(state.get("project_mode", "delivery"))
+    role_catalog = list(state.get("role_catalog", [])) if state else []
+    input_files = [f"projects/{project_id}/workflow_graph.json"]
+    defaults = {
         "role_name": "Implementation Lead",
         "objective": "Start the first practical step for this workspace and move the project toward a visible next result.",
-        "input_files": f"projects/{project_id}/workflow_graph.json",
+        "input_files": "\n".join(input_files),
     }
+    if project_mode == "research":
+        defaults = {
+            "role_name": "Research Curator",
+            "objective": "Collect, sort, and synthesize the current materials so the next step can continue from reusable project knowledge.",
+            "input_files": "\n".join([f"projects/{project_id}/project.json", f"projects/{project_id}/knowledge/knowledge_items.json"]),
+        }
+    elif project_mode == "experience":
+        defaults = {
+            "role_name": "Experience Designer",
+            "objective": "Clarify the user journey, reduce friction, and turn the current idea into a more understandable staged flow.",
+            "input_files": "\n".join([f"projects/{project_id}/project.json", f"projects/{project_id}/workflow_graph.json"]),
+        }
+    elif project_mode == "multimodal":
+        defaults = {
+            "role_name": "Implementation Lead",
+            "objective": "Connect multimodal input, planning, and execution into one visible file-driven loop.",
+            "input_files": "\n".join([f"projects/{project_id}/project.json", f"projects/{project_id}/workflow_graph.json"]),
+        }
+    available_roles = {str(item.get("role_name", "")) for item in role_catalog}
+    if defaults["role_name"] not in available_roles and role_catalog:
+        fallback_role = str(role_catalog[0].get("role_name", defaults["role_name"]))
+        defaults["role_name"] = fallback_role
+    return defaults
 
 
 def _session_complete_defaults(project_id: str, session_id: str) -> dict[str, object]:
@@ -113,12 +181,14 @@ def bootstrap_from_landing(
     goal: str = Form(...),
     initial_prompt: str = Form(...),
     project_name: str = Form("OpenFlow Project"),
+    preferred_project_mode: str = Form("delivery"),
 ):
     payload = create_project(
         BootstrapRequest(
             goal=goal,
             initial_prompt=initial_prompt,
             project_name=project_name,
+            preferred_project_mode=preferred_project_mode,
         )
     )
     return RedirectResponse(url=f"/projects/{payload['project_id']}/welcome", status_code=303)
@@ -158,6 +228,7 @@ def app_landing() -> dict[str, object]:
         "title": "OpenFlow",
         "proof_points": _proof_points(),
         "blueprint": blueprint,
+        "mode_presets": _mode_presets(),
         "examples": [
             "Organize research into a briefing",
             "Turn scattered notes into a deliverable",
@@ -165,6 +236,7 @@ def app_landing() -> dict[str, object]:
         ],
         "defaults": {
             "project_name": "OpenFlow Workspace",
+            "preferred_project_mode": "experience",
             "goal": "Turn scattered research into a clear briefing and next-step plan.",
             "initial_prompt": "I have interview notes, reference links, an unfinished outline, and a review deadline next week. Help organize the materials, show the current progress, and guide the next step.",
         },
@@ -173,10 +245,11 @@ def app_landing() -> dict[str, object]:
 
 @app.get("/api/app/projects/{project_id}/welcome")
 def app_welcome(project_id: str) -> dict[str, object]:
+    summary = get_project_state(project_id)
     return {
         "project_id": project_id,
-        "summary": get_project_state(project_id),
-        "first_step_defaults": _first_step_defaults(project_id),
+        "summary": summary,
+        "first_step_defaults": _first_step_defaults(project_id, summary),
     }
 
 

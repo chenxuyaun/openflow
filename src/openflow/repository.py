@@ -145,8 +145,42 @@ class OpenFlowRepository:
             "planning": any(word in text for word in ["plan", "planner", "milestone", "任务", "规划"]),
         }
 
-    def _derive_project_metadata(self, goal: str, initial_prompt: str) -> dict[str, object]:
+    def _normalize_project_mode(self, preferred_project_mode: Optional[str], profile: dict[str, bool]) -> str:
+        allowed_modes = {"research", "experience", "delivery", "multimodal"}
+        if preferred_project_mode in allowed_modes:
+            return preferred_project_mode
+        if profile["research"] and not profile["implementation"]:
+            return "research"
+        if profile["ui"] and not profile["multimodal"]:
+            return "experience"
+        if profile["multimodal"]:
+            return "multimodal"
+        return "delivery"
+
+    def _profile_with_mode(self, profile: dict[str, bool], project_mode: str) -> dict[str, bool]:
+        enriched = dict(profile)
+        if project_mode == "research":
+            enriched["research"] = True
+            enriched["knowledge"] = True
+        elif project_mode == "experience":
+            enriched["ui"] = True
+            enriched["planning"] = True
+        elif project_mode == "multimodal":
+            enriched["multimodal"] = True
+            enriched["implementation"] = True
+        else:
+            enriched["implementation"] = True
+            enriched["workflow"] = True
+        return enriched
+
+    def _derive_project_metadata(
+        self,
+        goal: str,
+        initial_prompt: str,
+        preferred_project_mode: Optional[str] = None,
+    ) -> dict[str, object]:
         profile = self._profile_request(goal, initial_prompt)
+        project_mode = self._normalize_project_mode(preferred_project_mode, profile)
         research_slots = [
             "internal_project_history",
             "competitor_and_adjacent_products",
@@ -158,23 +192,34 @@ class OpenFlowRepository:
             "make the next role and next files explicit",
             "preserve decisions and evidence as durable project memory",
         ]
-        project_mode = "delivery"
         project_type_label = "General Work"
         collaboration_style = "guided_multi_role"
         user_facing_roles = ["Coordinator", "Executor", "Reviewer"]
-        if profile["research"] and not profile["implementation"]:
-            project_mode = "research"
+        if project_mode == "research":
             project_type_label = "Research And Synthesis"
             user_facing_roles = ["Researcher", "Synthesizer", "Reviewer"]
-        elif profile["ui"] and not profile["multimodal"]:
-            project_mode = "experience"
+            execution_priority = [
+                "collect broad material without losing traceability",
+                "separate raw notes from reusable synthesis",
+                "surface the next evidence-backed decision clearly",
+            ]
+        elif project_mode == "experience":
             project_type_label = "Planning And Experience Design"
             user_facing_roles = ["Planner", "Designer", "Reviewer"]
-        elif profile["multimodal"]:
-            project_mode = "multimodal"
+            execution_priority = [
+                "make the user journey understandable on first contact",
+                "reduce workflow complexity before adding more controls",
+                "prove the system through visible interaction, not only explanation",
+            ]
+        elif project_mode == "multimodal":
             project_type_label = "Multimodal Build"
             user_facing_roles = ["Planner", "Builder", "Reviewer"]
-        elif profile["implementation"] or profile["workflow"]:
+            execution_priority = [
+                "connect multimodal input to planning and execution",
+                "keep file-based continuity explicit at each handoff",
+                "make the runnable loop easy to verify",
+            ]
+        elif profile["implementation"] or profile["workflow"] or project_mode == "delivery":
             project_type_label = "Build And Delivery"
             user_facing_roles = ["Planner", "Builder", "Reviewer"]
         governance_gates = [
@@ -200,8 +245,15 @@ class OpenFlowRepository:
             "execution_priority": execution_priority,
         }
 
-    def _derive_role_catalog(self, goal: str, initial_prompt: str) -> list[RoleInstanceSpec]:
+    def _derive_role_catalog(
+        self,
+        goal: str,
+        initial_prompt: str,
+        preferred_project_mode: Optional[str] = None,
+    ) -> list[RoleInstanceSpec]:
         profile = self._profile_request(goal, initial_prompt)
+        project_mode = self._normalize_project_mode(preferred_project_mode, profile)
+        profile = self._profile_with_mode(profile, project_mode)
         roles = [
             RoleInstanceSpec(
                 role_name="Bootstrap Strategist",
@@ -1291,8 +1343,8 @@ class OpenFlowRepository:
         session_id = f"session-{uuid4().hex[:8]}"
         project_name = request.project_name or "OpenFlow Project"
         project_dir = self._project_dir(project_id)
-        metadata = self._derive_project_metadata(request.goal, request.initial_prompt)
-        role_catalog = self._derive_role_catalog(request.goal, request.initial_prompt)
+        metadata = self._derive_project_metadata(request.goal, request.initial_prompt, request.preferred_project_mode)
+        role_catalog = self._derive_role_catalog(request.goal, request.initial_prompt, request.preferred_project_mode)
         task_tree = self._derive_task_tree(request.goal, request.initial_prompt, role_catalog)
         workflow_graph = self._derive_workflow_graph(role_catalog, task_tree)
         knowledge_items = self._load_seed_knowledge(project_id)

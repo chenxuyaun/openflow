@@ -260,6 +260,27 @@ def test_bootstrap_auto_ingests_project_knowledge_items() -> None:
     assert len(state["user_facing_roles"]) >= 3
 
 
+def test_explicit_project_mode_changes_bootstrap_shape() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Ship a working deliverable from messy notes.",
+            "initial_prompt": "The request is still broad, but I want the workspace to prioritize experience cleanup first.",
+            "project_name": "Mode Override Demo",
+            "preferred_project_mode": "experience",
+        },
+    )
+    assert bootstrap_response.status_code == 200
+
+    state = bootstrap_response.json()["state"]
+    roles = {item["role_name"] for item in state["role_catalog"]}
+
+    assert state["project_mode"] == "experience"
+    assert state["project_type_label"] == "Planning And Experience Design"
+    assert state["attraction_focus"] == "experience_proof"
+    assert "Experience Designer" in roles
+
+
 def test_bootstrap_generation_changes_with_request_shape() -> None:
     research_bootstrap = client.post(
         "/projects/bootstrap",

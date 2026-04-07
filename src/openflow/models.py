@@ -162,6 +162,7 @@ class BootstrapRequest(BaseModel):
     goal: str
     initial_prompt: str
     project_name: Optional[str] = None
+    preferred_project_mode: Optional[str] = None
 
 
 class SessionCreateRequest(BaseModel):
