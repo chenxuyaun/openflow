@@ -8,13 +8,16 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 from uuid import uuid4
+from datetime import datetime, timezone
 
 from openflow.models import (
     BootstrapRequest,
     DecisionRecord,
     HandoffRecord,
+    HandoffReviewRequest,
     KnowledgeItem,
     ProjectState,
+    ResearchPackIngestRequest,
     RoleInstanceSpec,
     SessionCompleteRequest,
     SessionCreateRequest,
@@ -466,6 +469,8 @@ class OpenFlowRepository:
             if task.owner_role == session.role_name and task.status == SessionStatus.active:
                 task.status = SessionStatus.completed
                 task.blocked_reason = None
+                task.governance_source = "session_completion"
+                task.last_status_reason = f"Completed by {session.role_name} and recorded in handoff {handoff.handoff_id}."
                 if evidence_path not in task.evidence_refs:
                     task.evidence_refs.append(evidence_path)
                 changed = True
@@ -473,6 +478,8 @@ class OpenFlowRepository:
                 update = updates[task.task_id]
                 task.status = SessionStatus(update["status"])
                 task.blocked_reason = update["blocked_reason"]
+                task.governance_source = "explicit_task_status_update"
+                task.last_status_reason = f"Updated from handoff {handoff.handoff_id}."
                 if evidence_path not in task.evidence_refs:
                     task.evidence_refs.append(evidence_path)
                 changed = True
@@ -480,6 +487,8 @@ class OpenFlowRepository:
             for task in task_tree:
                 if task.owner_role == handoff.next_role_recommendation:
                     task.status = SessionStatus.active
+                    task.governance_source = "confirm_gate_review"
+                    task.last_status_reason = "Review requested another pass before advancing."
                     changed = True
                     break
         elif handoff.acceptance_status == "replan_required":
@@ -487,6 +496,8 @@ class OpenFlowRepository:
                 if task.owner_role == "Bootstrap Strategist":
                     task.status = SessionStatus.waiting_confirmation
                     task.blocked_reason = "Review requested replanning before execution continues."
+                    task.governance_source = "confirm_gate_review"
+                    task.last_status_reason = "Workflow was sent back for replanning."
                     changed = True
                     break
         if changed:
@@ -502,13 +513,44 @@ class OpenFlowRepository:
         if latest_handoff:
             latest_review = latest_handoff.review_outcome or latest_handoff.acceptance_status
             workflow_roles = {node.role_name: node.handoff_policy for node in state.workflow_graph.nodes}
-            if workflow_roles.get(latest_handoff.next_role_recommendation) == "confirm":
+            if workflow_roles.get(latest_handoff.next_role_recommendation) == "confirm" and latest_handoff.acceptance_status != "approved":
                 confirm_waiting = True
+        why_current = "Project bootstrap created the initial role/task/workflow state."
+        if latest_handoff:
+            why_current = latest_handoff.next_role_reason
         return {
             "confirm_waiting": confirm_waiting,
             "latest_review": latest_review or "not_reviewed",
             "gates": state.governance_gates,
+            "pending_handoff_id": latest_handoff.handoff_id if confirm_waiting and latest_handoff else None,
+            "why_current_state": why_current,
         }
+
+    def _decision_support_map(
+        self,
+        knowledge_items: list[KnowledgeItem],
+        decisions: list[DecisionRecord],
+    ) -> list[dict[str, object]]:
+        support = []
+        for decision in decisions:
+            linked = [
+                item.model_dump(mode="json")
+                for item in knowledge_items
+                if decision.decision_id in item.decision_ids
+            ]
+            normalized_status = decision.status
+            if normalized_status == "accepted":
+                normalized_status = "adopted"
+            support.append(
+                {
+                    "decision_id": decision.decision_id,
+                    "title": decision.title,
+                    "status": normalized_status,
+                    "rationale": decision.rationale,
+                    "supporting_knowledge": linked,
+                }
+            )
+        return support
 
     def _knowledge_file(self, project_id: str) -> Path:
         return self._project_dir(project_id) / "knowledge" / "knowledge_items.json"
@@ -740,6 +782,128 @@ class OpenFlowRepository:
                 ],
             )
 
+    def ingest_research_pack(self, request: ResearchPackIngestRequest) -> dict[str, object]:
+        pack_slug = self._slug(request.pack_title)
+        raw_item = KnowledgeItem(
+            project_id=request.project_id,
+            knowledge_id=f"research-raw-{pack_slug}-{uuid4().hex[:6]}",
+            title=f"{request.pack_title} raw source",
+            source_type=SourceType.external,
+            source_family=request.source_family,
+            entry_kind="raw_source",
+            adoption_status="reference",
+            source_ref=request.source_ref,
+            summary=request.raw_notes,
+            themes=request.themes,
+            reliability=request.reliability,
+            relevance=request.relevance,
+            decision_ids=request.decision_ids,
+        )
+        synthesized_item = KnowledgeItem(
+            project_id=request.project_id,
+            knowledge_id=f"research-derived-{pack_slug}-{uuid4().hex[:6]}",
+            title=f"{request.pack_title} synthesized insight",
+            source_type=SourceType.external,
+            source_family=request.source_family,
+            entry_kind="synthesized_insight",
+            adoption_status=request.adoption_status,
+            source_ref=request.source_ref,
+            summary=request.synthesized_summary,
+            themes=request.themes,
+            reliability=request.reliability,
+            relevance=request.relevance,
+            decision_ids=request.decision_ids,
+        )
+        self._append_knowledge_items(request.project_id, [raw_item, synthesized_item])
+        return {
+            "project_id": request.project_id,
+            "items": [
+                raw_item.model_dump(mode="json"),
+                synthesized_item.model_dump(mode="json"),
+            ],
+        }
+
+    def _apply_review_action_to_tasks(
+        self,
+        project_id: str,
+        session: SessionRecord,
+        handoff: HandoffRecord,
+        action: str,
+    ) -> None:
+        task_tree_path = self._project_dir(project_id) / "task_tree.json"
+        task_tree = [TaskNode.model_validate(item) for item in self._read_json(task_tree_path)]
+        changed = False
+        if action == "changes_requested":
+            for task in task_tree:
+                if task.owner_role == session.role_name:
+                    task.status = SessionStatus.active
+                    task.blocked_reason = "Confirm gate review requested changes before advance."
+                    task.governance_source = "confirm_gate_review"
+                    task.last_status_reason = handoff.review_note or "Review requested changes."
+                    changed = True
+        elif action == "replan_required":
+            for task in task_tree:
+                if task.owner_role == "Bootstrap Strategist":
+                    task.status = SessionStatus.active
+                    task.blocked_reason = "Confirm gate review sent the project back for replanning."
+                    task.governance_source = "confirm_gate_review"
+                    task.last_status_reason = handoff.review_note or "Review required replanning."
+                    changed = True
+        elif action == "approve":
+            for task in task_tree:
+                if task.owner_role == handoff.next_role_recommendation and task.status == SessionStatus.waiting_confirmation:
+                    task.status = SessionStatus.active
+                    task.blocked_reason = None
+                    task.governance_source = "confirm_gate_review"
+                    task.last_status_reason = handoff.review_note or "Review approved the next role."
+                    changed = True
+        if changed:
+            self._write_json(task_tree_path, [task.model_dump(mode="json") for task in task_tree])
+
+    def review_handoff(self, handoff_id: str, request: HandoffReviewRequest) -> dict[str, object]:
+        handoff = self._find_handoff(handoff_id)
+        session = self._find_session(handoff.session_id)
+        action = request.action.strip().lower()
+        if action not in {"approve", "changes_requested", "replan_required"}:
+            raise ValueError(f"Unsupported review action: {request.action}")
+
+        handoff.status = action
+        handoff.review_outcome = action
+        handoff.review_note = request.note
+        handoff.followup_actions = list(handoff.followup_actions) + ([request.note] if request.note else [])
+        if action == "approve":
+            handoff.acceptance_status = "approved"
+            handoff.resulting_role = handoff.next_role_recommendation
+        elif action == "changes_requested":
+            handoff.acceptance_status = "changes_requested"
+            handoff.next_role_recommendation = session.role_name
+            handoff.next_role_reason = request.note or "Confirm gate review requested another execution pass."
+            handoff.required_input_files = sorted(
+                set(handoff.required_input_files + [f"projects/{handoff.project_id}/sessions/{handoff.session_id}/handoff.json"])
+            )
+            handoff.resulting_role = session.role_name
+        else:
+            handoff.acceptance_status = "replan_required"
+            handoff.next_role_recommendation = "Bootstrap Strategist"
+            handoff.next_role_reason = request.note or "Confirm gate review requested replanning."
+            handoff.required_input_files = sorted(
+                set(handoff.required_input_files + [f"projects/{handoff.project_id}/sessions/{handoff.session_id}/handoff.json"])
+            )
+            handoff.resulting_role = "Bootstrap Strategist"
+        handoff.reviewed_at = datetime.now(timezone.utc)
+
+        self._write_json(
+            self._session_dir(handoff.project_id, handoff.session_id) / "handoff.json",
+            handoff.model_dump(mode="json"),
+        )
+        self._apply_review_action_to_tasks(handoff.project_id, session, handoff, action)
+        return {
+            "handoff_id": handoff.handoff_id,
+            "status": handoff.status,
+            "acceptance_status": handoff.acceptance_status,
+            "next_role": handoff.next_role_recommendation,
+        }
+
     def bootstrap_project(self, request: BootstrapRequest) -> dict[str, object]:
         project_id = f"project-{uuid4().hex[:8]}"
         session_id = f"session-{uuid4().hex[:8]}"
@@ -914,11 +1078,12 @@ class OpenFlowRepository:
             if stage.get("role_name") == handoff.next_role_recommendation or stage.get("stage_id") == handoff.next_role_recommendation:
                 next_policy = stage.get("handoff_policy", "auto")
                 break
-        if next_policy == "confirm":
+        if next_policy == "confirm" and handoff.acceptance_status != "approved":
             return {
                 "status": "waiting_confirmation",
                 "handoff_id": handoff.handoff_id,
                 "next_role": handoff.next_role_recommendation,
+                "acceptance_status": handoff.acceptance_status or "pending_review",
             }
         session = self.create_session(
             SessionCreateRequest(
@@ -977,6 +1142,12 @@ class OpenFlowRepository:
         timeline = self.get_project_timeline(project_id)
         governance = self._governance_summary(state, latest_handoff)
         next_role = latest_handoff.next_role_recommendation if latest_handoff else (state.role_catalog[0].role_name if state.role_catalog else None)
+        why_next_role = latest_handoff.next_role_reason if latest_handoff else "Bootstrap created the first role from the initial request."
+        blocked_now = None
+        for task in state.task_tree:
+            if task.blocked_reason:
+                blocked_now = task.blocked_reason
+                break
         return {
             "project_id": project_id,
             "project": project_meta,
@@ -986,6 +1157,8 @@ class OpenFlowRepository:
             "timeline": timeline["events"],
             "governance": governance,
             "next_role": next_role,
+            "why_next_role": why_next_role,
+            "blocked_now": blocked_now,
         }
 
     def get_project_knowledge(self, project_id: str) -> dict[str, object]:
@@ -1003,6 +1176,11 @@ class OpenFlowRepository:
             key=lambda item: item.generated_at,
             reverse=True,
         )
+        research_packs = [item for item in sorted_items if item.source_family != "project_memory" or item.entry_kind != "derived"]
+        grouped_research: dict[str, list[dict[str, object]]] = {}
+        for item in research_packs:
+            grouped_research.setdefault(item.source_family, []).append(item.model_dump(mode="json"))
+        decision_support = self._decision_support_map(state.knowledge_items, state.decisions)
         return {
             "project_id": project_id,
             "blueprint_documents": self._blueprint_documents(),
@@ -1010,6 +1188,8 @@ class OpenFlowRepository:
             "evolution_feed": [item.model_dump(mode="json") for item in sorted_items],
             "decisions": [item.model_dump(mode="json") for item in state.decisions],
             "project_files": project_files,
+            "research_groups": grouped_research,
+            "decision_support": decision_support,
         }
 
     def get_project_timeline(self, project_id: str) -> dict[str, object]:
@@ -1022,16 +1202,19 @@ class OpenFlowRepository:
                 "timestamp": project_meta["created_at"],
                 "title": f"Project {project_meta['project_name']} bootstrapped",
                 "summary": project_meta["goal"],
+                "because": "The initial request was turned into a role/task/workflow model.",
                 "target_url": f"/projects/{project_id}",
             }
         )
         for session in state.sessions:
+            session_reason = f"{session.role_name} was started because its declared objective was active."
             events.append(
                 {
                     "event_type": "session_created",
                     "timestamp": session.created_at.isoformat(),
                     "title": f"Session {session.session_id} created",
                     "summary": f"{session.role_name} started work.",
+                    "because": session_reason,
                     "target_url": f"/projects/{project_id}/sessions/{session.session_id}",
                 }
             )
@@ -1044,6 +1227,7 @@ class OpenFlowRepository:
                         "timestamp": handoff.created_at.isoformat(),
                         "title": f"Handoff {handoff.handoff_id} written",
                         "summary": handoff.session_summary,
+                        "because": handoff.next_role_reason,
                         "target_url": f"/projects/{project_id}/sessions/{session.session_id}",
                     }
                 )
@@ -1062,6 +1246,7 @@ class OpenFlowRepository:
                     "timestamp": item.generated_at.isoformat(),
                     "title": title,
                     "summary": item.summary,
+                    "because": f"{item.entry_kind} was preserved as durable project memory.",
                     "target_url": (
                         f"/projects/{project_id}/sessions/{item.session_id}"
                         if item.session_id
@@ -1101,6 +1286,11 @@ class OpenFlowRepository:
             "task_tree": [item.model_dump(mode="json") for item in state.task_tree],
             "counts": counts,
             "execution_priority": state.execution_priority,
+            "blocked_tasks": [
+                item.model_dump(mode="json")
+                for item in state.task_tree
+                if item.blocked_reason or item.governance_source
+            ],
         }
 
     def get_session_detail(self, project_id: str, session_id: str) -> dict[str, object]:
@@ -1114,11 +1304,29 @@ class OpenFlowRepository:
             handoff = HandoffRecord.model_validate(self._read_json(handoff_path))
         if transcript_path.exists():
             transcript = self._read_json(transcript_path)
+        workflow = self.get_project_workflow(project_id)
+        role_policy = "auto"
+        for node in workflow["workflow_graph"]["nodes"]:
+            if node["role_name"] == session.role_name:
+                role_policy = node.get("handoff_policy", "auto")
+                break
+        why_exists = f"This session exists because {session.objective}"
+        prior_handoff = None
+        sessions_root = self._project_dir(project_id) / "sessions"
+        if sessions_root.exists():
+            for path in sorted(sessions_root.glob("*/handoff.json")):
+                candidate = HandoffRecord.model_validate(self._read_json(path))
+                if candidate.next_role_recommendation == session.role_name and candidate.session_id != session_id:
+                    prior_handoff = candidate
+        if prior_handoff:
+            why_exists = f"This session exists because handoff {prior_handoff.handoff_id} recommended {session.role_name}: {prior_handoff.next_role_reason}"
         return {
             "project_id": project_id,
             "session": session.model_dump(mode="json"),
             "handoff": handoff.model_dump(mode="json") if handoff else None,
             "transcript": transcript,
+            "role_policy": role_policy,
+            "why_exists": why_exists,
         }
 
     def _find_session(self, session_id: str) -> SessionRecord:

@@ -9,7 +9,9 @@
     <div class="stat">Fresh session</div>
     <div class="stat">Declared inputs: {{ payload.session.input_files|length }}</div>
     <div class="stat">Transcript entries: {{ payload.transcript|length }}</div>
+    <div class="stat">Handoff policy: {{ payload.role_policy }}</div>
   </div>
+  <p class="muted">{{ payload.why_exists }}</p>
   {% if handoff_status == "advanced" %}
   <p class="muted">Handoff advanced and the next session was created.</p>
   {% endif %}
@@ -38,6 +40,12 @@
       <strong>{{ payload.handoff.next_role_recommendation }}</strong>
       <p class="muted">{{ payload.handoff.next_role_reason }}</p>
       <p class="muted">Acceptance: {{ payload.handoff.acceptance_status or "not_set" }} · Review: {{ payload.handoff.review_outcome or "not_set" }}</p>
+      {% if payload.handoff.review_note %}
+      <p class="muted">Review note: {{ payload.handoff.review_note }}</p>
+      {% endif %}
+      {% if payload.handoff.resulting_role %}
+      <p class="muted">Resulting role: {{ payload.handoff.resulting_role }}</p>
+      {% endif %}
       {% if payload.handoff.success_criteria %}
       <p>Acceptance criteria: {{ payload.handoff.success_criteria|join(", ") }}</p>
       {% endif %}
@@ -50,6 +58,16 @@
       <form method="post" action="/projects/{{ project_id }}/handoffs/{{ payload.handoff.handoff_id }}/advance">
         <p><button type="submit">Advance Handoff</button></p>
       </form>
+      {% if payload.handoff.acceptance_status != "approved" and payload.role_policy == "confirm" %}
+      <form method="post" action="/projects/{{ project_id }}/handoffs/{{ payload.handoff.handoff_id }}/review">
+        <p><label>Confirm gate note<br /><textarea name="note" style="width:100%;min-height:70px">Review this handoff before allowing the next session.</textarea></label></p>
+        <p>
+          <button type="submit" name="action" value="approve">Approve</button>
+          <button type="submit" name="action" value="changes_requested">Request Changes</button>
+          <button type="submit" name="action" value="replan_required">Send To Replan</button>
+        </p>
+      </form>
+      {% endif %}
     </div>
     {% else %}
     <p class="muted">No handoff written yet.</p>

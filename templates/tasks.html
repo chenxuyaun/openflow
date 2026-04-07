@@ -36,10 +36,31 @@
     {% if task.blocked_reason %}
     <p>Blocked: {{ task.blocked_reason }}</p>
     {% endif %}
+    {% if task.governance_source %}
+    <p class="muted">Governance source: {{ task.governance_source }}</p>
+    {% endif %}
+    {% if task.last_status_reason %}
+    <p class="muted">Why this status: {{ task.last_status_reason }}</p>
+    {% endif %}
     {% if task.evidence_refs %}
     <p class="muted">Evidence: {{ task.evidence_refs|join(", ") }}</p>
     {% endif %}
   </div>
   {% endfor %}
+</section>
+
+<section class="panel">
+  <h2>Governance-Affected Tasks</h2>
+  {% if payload.blocked_tasks %}
+    {% for task in payload.blocked_tasks %}
+    <div class="list-card">
+      <strong>{{ task.title }}</strong>
+      <p class="muted">{{ task.governance_source or "n/a" }}</p>
+      <p>{{ task.last_status_reason or task.blocked_reason or "No governance note recorded." }}</p>
+    </div>
+    {% endfor %}
+  {% else %}
+  <p class="muted">No governance-driven task transitions yet.</p>
+  {% endif %}
 </section>
 {% endblock %}

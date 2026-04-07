@@ -73,6 +73,8 @@ class TaskNode(BaseModel):
     blocked_reason: Optional[str] = None
     priority: str = "medium"
     evidence_refs: List[str] = Field(default_factory=list)
+    governance_source: Optional[str] = None
+    last_status_reason: Optional[str] = None
 
 
 class SessionRecord(BaseModel):
@@ -90,6 +92,9 @@ class KnowledgeItem(BaseModel):
     knowledge_id: str
     title: str
     source_type: SourceType
+    source_family: str = "project_memory"
+    entry_kind: str = "derived"
+    adoption_status: str = "reference"
     source_ref: str
     summary: str
     themes: List[str] = Field(default_factory=list)
@@ -129,6 +134,9 @@ class HandoffRecord(BaseModel):
     review_outcome: Optional[str] = None
     acceptance_status: Optional[str] = None
     followup_actions: List[str] = Field(default_factory=list)
+    review_note: Optional[str] = None
+    reviewed_at: Optional[datetime] = None
+    resulting_role: Optional[str] = None
 
 
 class ProjectState(BaseModel):
@@ -173,3 +181,22 @@ class SessionCompleteRequest(BaseModel):
     acceptance_status: Optional[str] = None
     followup_actions: List[str] = Field(default_factory=list)
     transcript_note: Optional[str] = None
+
+
+class HandoffReviewRequest(BaseModel):
+    action: str
+    note: Optional[str] = None
+
+
+class ResearchPackIngestRequest(BaseModel):
+    project_id: str
+    pack_title: str
+    source_family: str
+    source_ref: str
+    raw_notes: str
+    synthesized_summary: str
+    themes: List[str] = Field(default_factory=list)
+    decision_ids: List[str] = Field(default_factory=list)
+    adoption_status: str = "proposed"
+    reliability: str = "medium"
+    relevance: str = "high"

@@ -3,7 +3,7 @@
 <section class="hero">
   <div class="eyebrow">Knowledge Center</div>
   <h1>Knowledge for {{ project_id }}</h1>
-  <p class="muted">Blueprint docs, project knowledge, decisions, and files are visible here.</p>
+  <p class="muted">Blueprint docs, research packs, project knowledge, decisions, and files are visible here.</p>
 </section>
 
 <section class="grid">
@@ -14,31 +14,85 @@
       <strong>{{ item.title }}</strong>
       <p>{{ item.summary }}</p>
       <p class="muted">{{ item.generated_at }} · {{ item.source_ref }}</p>
+      <p class="muted">{{ item.source_family }} · {{ item.entry_kind }} · {{ item.adoption_status }}</p>
     </div>
     {% endfor %}
   </article>
   <article class="panel">
-    <h2>Project Knowledge Items</h2>
-    {% for item in payload.knowledge_items %}
-    <div class="list-card">
-      <strong>{{ item.title }}</strong>
-      <p class="muted">{{ item.source_type }} · {{ item.source_ref }}</p>
-      <p>{{ item.summary }}</p>
-      <p class="muted">Themes: {{ item.themes|join(", ") if item.themes else "none" }}</p>
-      <p class="muted">Decisions: {{ item.decision_ids|join(", ") if item.decision_ids else "none" }}</p>
-      <p class="muted">Session: {{ item.session_id or "n/a" }} · Handoff: {{ item.handoff_id or "n/a" }}</p>
-    </div>
-    {% endfor %}
+    <h2>Research Packs</h2>
+    {% if payload.research_groups %}
+      {% for family, items in payload.research_groups.items() %}
+      <div class="list-card">
+        <strong>{{ family }}</strong>
+        {% for item in items %}
+        <p><code>{{ item.entry_kind }}</code> · {{ item.title }} · {{ item.adoption_status }}</p>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    {% else %}
+    <p class="muted">No research packs ingested yet.</p>
+    {% endif %}
   </article>
   <article class="panel">
     <h2>Decisions</h2>
     {% for item in payload.decisions %}
     <div class="list-card">
       <strong>{{ item.title }}</strong>
-      <p class="muted">{{ item.status }}</p>
+      <p class="muted">{{ "adopted" if item.status == "accepted" else item.status }}</p>
     </div>
     {% endfor %}
   </article>
+</section>
+
+<section class="panel">
+  <h2>Decisions Influenced By Research</h2>
+  {% for item in payload.decision_support %}
+  <div class="list-card">
+    <strong>{{ item.title }}</strong>
+    <p class="muted">{{ item.status }}</p>
+    <p>{{ item.rationale }}</p>
+    {% if item.supporting_knowledge %}
+      {% for support in item.supporting_knowledge %}
+      <p class="muted">{{ support.entry_kind }} · {{ support.title }} · {{ support.adoption_status }}</p>
+      {% endfor %}
+    {% else %}
+    <p class="muted">No linked knowledge items yet.</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+</section>
+
+<section class="panel">
+  <h2>Ingest Research Pack</h2>
+  <form method="post" action="/projects/{{ project_id }}/research-packs">
+    <p><label>Pack title<br /><input type="text" name="pack_title" style="width:100%" value="Workflow method review" /></label></p>
+    <p><label>Source family<br /><input type="text" name="source_family" style="width:100%" value="workflow_handoff_methods" /></label></p>
+    <p><label>Source ref<br /><input type="text" name="source_ref" style="width:100%" value="internal-notes" /></label></p>
+    <p><label>Raw notes<br /><textarea name="raw_notes" style="width:100%;min-height:100px">Paste the raw source material or normalized notes here.</textarea></label></p>
+    <p><label>Synthesized summary<br /><textarea name="synthesized_summary" style="width:100%;min-height:100px">Summarize what should affect product, workflow, or governance decisions.</textarea></label></p>
+    <p><label>Themes<br /><textarea name="themes" style="width:100%;min-height:70px">knowledge_indexing
+handoff_governance</textarea></label></p>
+    <p><label>Decision ids<br /><textarea name="decision_ids" style="width:100%;min-height:70px"></textarea></label></p>
+    <p><label>Adoption status<br /><input type="text" name="adoption_status" style="width:100%" value="proposed" /></label></p>
+    <p><label>Reliability<br /><input type="text" name="reliability" style="width:100%" value="medium" /></label></p>
+    <p><label>Relevance<br /><input type="text" name="relevance" style="width:100%" value="high" /></label></p>
+    <p><button type="submit">Ingest Research Pack</button></p>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Project Knowledge Items</h2>
+  {% for item in payload.knowledge_items %}
+  <div class="list-card">
+    <strong>{{ item.title }}</strong>
+    <p class="muted">{{ item.source_type }} · {{ item.source_ref }}</p>
+    <p>{{ item.summary }}</p>
+    <p class="muted">Themes: {{ item.themes|join(", ") if item.themes else "none" }}</p>
+    <p class="muted">Decisions: {{ item.decision_ids|join(", ") if item.decision_ids else "none" }}</p>
+    <p class="muted">Family: {{ item.source_family }} · Kind: {{ item.entry_kind }} · Adoption: {{ item.adoption_status }}</p>
+    <p class="muted">Session: {{ item.session_id or "n/a" }} · Handoff: {{ item.handoff_id or "n/a" }}</p>
+  </div>
+  {% endfor %}
 </section>
 
 <section class="panel">

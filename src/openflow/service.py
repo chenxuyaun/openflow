@@ -8,8 +8,10 @@ from openflow.models import (
     BootstrapRequest,
     DecisionRecord,
     HandoffRecord,
+    HandoffReviewRequest,
     KnowledgeItem,
     ProjectState,
+    ResearchPackIngestRequest,
     RoleInstanceSpec,
     SessionCompleteRequest,
     SessionCreateRequest,
@@ -217,6 +219,14 @@ def complete_project_session(session_id: str, request: SessionCompleteRequest) -
 
 def advance_project_handoff(handoff_id: str) -> dict[str, object]:
     return repository.advance_handoff(handoff_id)
+
+
+def review_project_handoff(handoff_id: str, request: HandoffReviewRequest) -> dict[str, object]:
+    return repository.review_handoff(handoff_id, request)
+
+
+def ingest_project_research_pack(request: ResearchPackIngestRequest) -> dict[str, object]:
+    return repository.ingest_research_pack(request)
 
 
 def get_project_state(project_id: str) -> dict[str, object]:

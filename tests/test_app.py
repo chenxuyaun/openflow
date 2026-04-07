@@ -405,6 +405,96 @@ def test_timeline_includes_git_and_handoff_events() -> None:
     assert "handoff_status" in advance_response.headers["location"]
 
 
+def test_confirm_gate_review_can_approve_and_then_advance() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Build a project that requires architecture confirmation.",
+            "initial_prompt": "Create a workflow that hands off into System Architect.",
+            "project_name": "Confirm Demo",
+        },
+    )
+    session_id = bootstrap_response.json()["session_id"]
+    project_id = bootstrap_response.json()["project_id"]
+
+    complete_response = client.post(
+        f"/sessions/{session_id}/complete",
+        json={
+            "session_summary": "Bootstrap complete.",
+            "next_role_recommendation": "System Architect",
+            "next_role_reason": "Architecture review is required.",
+            "acceptance_status": "pending_review",
+        },
+    )
+    handoff_id = complete_response.json()["handoff_id"]
+
+    blocked_advance = client.post(f"/handoffs/{handoff_id}/advance")
+    assert blocked_advance.status_code == 200
+    assert blocked_advance.json()["status"] == "waiting_confirmation"
+
+    review_response = client.post(
+        f"/handoffs/{handoff_id}/review",
+        json={"action": "approve", "note": "The architecture gate is satisfied."},
+    )
+    assert review_response.status_code == 200
+    assert review_response.json()["acceptance_status"] == "approved"
+
+    approved_advance = client.post(f"/handoffs/{handoff_id}/advance")
+    assert approved_advance.status_code == 200
+    assert approved_advance.json()["status"] == "advanced"
+    assert approved_advance.json()["session"]["role_name"] == "System Architect"
+
+    project_page = client.get(f"/projects/{project_id}")
+    assert project_page.status_code == 200
+    assert "approved" in project_page.text
+    assert "Why The Project Is Here Now" in project_page.text
+
+
+def test_research_pack_ingest_creates_raw_and_synthesized_items() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Collect research and turn it into reusable project memory.",
+            "initial_prompt": "Need a research-heavy project.",
+            "project_name": "Research Pack Demo",
+        },
+    )
+    project_id = bootstrap_response.json()["project_id"]
+
+    ingest_response = client.post(
+        "/research-packs",
+        json={
+            "project_id": project_id,
+            "pack_title": "Adjacent workflow systems",
+            "source_family": "competitor_and_adjacent_products",
+            "source_ref": "manual-notes",
+            "raw_notes": "Raw notes from reviewing adjacent workflow tools.",
+            "synthesized_summary": "Adopt explicit handoff visibility and reject hidden state transitions.",
+            "themes": ["product_narrative", "handoff_governance"],
+            "adoption_status": "adopted",
+            "reliability": "medium",
+            "relevance": "high",
+        },
+    )
+    assert ingest_response.status_code == 200
+    assert len(ingest_response.json()["items"]) == 2
+
+    knowledge_response = client.get("/knowledge", params={"project_id": project_id})
+    assert knowledge_response.status_code == 200
+    payload = knowledge_response.json()
+
+    assert "competitor_and_adjacent_products" in payload["research_groups"]
+    assert any(item["entry_kind"] == "raw_source" for item in payload["knowledge_items"])
+    assert any(item["entry_kind"] == "synthesized_insight" for item in payload["knowledge_items"])
+    assert "decision_support" in payload
+
+    knowledge_page = client.get(f"/projects/{project_id}/knowledge")
+    assert knowledge_page.status_code == 200
+    assert "Ingest Research Pack" in knowledge_page.text
+    assert "Research Packs" in knowledge_page.text
+    assert "Decisions Influenced By Research" in knowledge_page.text
+
+
 def test_project_dashboard_shows_governance_and_task_board_link() -> None:
     bootstrap_response = client.post(
         "/projects/bootstrap",
@@ -421,3 +511,57 @@ def test_project_dashboard_shows_governance_and_task_board_link() -> None:
     assert "Task Board" in project_page.text
     assert "Governance Gates" in project_page.text
     assert "Execution Priorities" in project_page.text
+    assert "Why The Project Is Here Now" in project_page.text
+
+
+def test_changes_requested_reactivates_task_with_governance_reason() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Build a workflow that will require changes.",
+            "initial_prompt": "Create a workflow that hands off into System Architect for confirmation.",
+            "project_name": "Changes Requested Demo",
+        },
+    )
+    session_id = bootstrap_response.json()["session_id"]
+    project_id = bootstrap_response.json()["project_id"]
+    complete_response = client.post(
+        f"/sessions/{session_id}/complete",
+        json={
+            "session_summary": "Bootstrap complete.",
+            "next_role_recommendation": "System Architect",
+            "next_role_reason": "Architecture confirmation is needed.",
+            "acceptance_status": "pending_review",
+        },
+    )
+    handoff_id = complete_response.json()["handoff_id"]
+    review_response = client.post(
+        f"/handoffs/{handoff_id}/review",
+        json={"action": "changes_requested", "note": "The implementation package needs another pass."},
+    )
+    assert review_response.status_code == 200
+    assert review_response.json()["next_role"] == "Bootstrap Strategist"
+
+    task_board = client.get(f"/projects/{project_id}/tasks")
+    assert task_board.status_code == 200
+    assert "Governance-Affected Tasks" in task_board.text
+    assert "confirm_gate_review" in task_board.text
+
+    session_page = client.get(f"/projects/{project_id}/sessions/{session_id}")
+    assert session_page.status_code == 200
+    assert "Review note:" in session_page.text
+
+
+def test_timeline_includes_because_explanations() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Create a timeline with clear reasons.",
+            "initial_prompt": "Turn project activity into explainable events.",
+            "project_name": "Because Demo",
+        },
+    )
+    project_id = bootstrap_response.json()["project_id"]
+
+    timeline = get_project_timeline(project_id)
+    assert all("because" in item for item in timeline["events"])

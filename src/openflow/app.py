@@ -25,8 +25,16 @@ from openflow.service import (
     get_project_tasks,
     get_project_timeline,
     get_project_workflow,
+    ingest_project_research_pack,
+    review_project_handoff,
 )
-from openflow.models import BootstrapRequest, SessionCompleteRequest, SessionCreateRequest
+from openflow.models import (
+    BootstrapRequest,
+    HandoffReviewRequest,
+    ResearchPackIngestRequest,
+    SessionCompleteRequest,
+    SessionCreateRequest,
+)
 
 TEMPLATES_DIR = Path(__file__).resolve().parents[2] / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -125,6 +133,16 @@ def advance_handoff(handoff_id: str) -> dict[str, object]:
     return advance_project_handoff(handoff_id)
 
 
+@app.post("/handoffs/{handoff_id}/review")
+def review_handoff(handoff_id: str, request: HandoffReviewRequest) -> dict[str, object]:
+    return review_project_handoff(handoff_id, request)
+
+
+@app.post("/research-packs")
+def ingest_research_pack(request: ResearchPackIngestRequest) -> dict[str, object]:
+    return ingest_project_research_pack(request)
+
+
 @app.post("/projects/{project_id}/handoffs/{handoff_id}/advance")
 def advance_handoff_from_page(project_id: str, handoff_id: str):
     result = advance_project_handoff(handoff_id)
@@ -136,6 +154,23 @@ def advance_handoff_from_page(project_id: str, handoff_id: str):
         )
     return RedirectResponse(
         url=f"/projects/{project_id}?handoff_status=waiting_confirmation&handoff_id={handoff_id}",
+        status_code=303,
+    )
+
+
+@app.post("/projects/{project_id}/handoffs/{handoff_id}/review")
+def review_handoff_from_page(
+    project_id: str,
+    handoff_id: str,
+    action: str = Form(...),
+    note: str = Form(""),
+):
+    result = review_project_handoff(
+        handoff_id,
+        HandoffReviewRequest(action=action, note=note or None),
+    )
+    return RedirectResponse(
+        url=f"/projects/{project_id}?handoff_status={result['acceptance_status']}",
         status_code=303,
     )
 
@@ -189,6 +224,41 @@ def knowledge_page(project_id: str, request: Request):
             "project_id": project_id,
             "payload": payload,
         },
+    )
+
+
+@app.post("/projects/{project_id}/research-packs")
+def ingest_research_pack_from_page(
+    project_id: str,
+    pack_title: str = Form(...),
+    source_family: str = Form(...),
+    source_ref: str = Form(...),
+    raw_notes: str = Form(...),
+    synthesized_summary: str = Form(...),
+    themes: str = Form(""),
+    decision_ids: str = Form(""),
+    adoption_status: str = Form("proposed"),
+    reliability: str = Form("medium"),
+    relevance: str = Form("high"),
+):
+    ingest_project_research_pack(
+        ResearchPackIngestRequest(
+            project_id=project_id,
+            pack_title=pack_title,
+            source_family=source_family,
+            source_ref=source_ref,
+            raw_notes=raw_notes,
+            synthesized_summary=synthesized_summary,
+            themes=[item.strip() for item in themes.splitlines() if item.strip()],
+            decision_ids=[item.strip() for item in decision_ids.splitlines() if item.strip()],
+            adoption_status=adoption_status,
+            reliability=reliability,
+            relevance=relevance,
+        )
+    )
+    return RedirectResponse(
+        url=f"/projects/{project_id}/knowledge",
+        status_code=303,
     )
 
 
