@@ -49,8 +49,18 @@ And it supports an advanced governance layer:
 
 ## First-Use Attraction
 
-The first compelling moment is when a user describes a complex goal and sees it
-turned into:
+The first compelling moment is when a user sees that OpenFlow can take messy
+work and turn it into a stable workspace without requiring them to manage the
+continuity by hand.
+
+The landing should quickly show:
+
+- messy work in
+- structured workspace out
+- fresh sessions continue safely
+- advanced controls exist only when needed
+
+And once the user starts, they should see:
 
 - a work type
 - a set of role responsibilities
@@ -59,7 +69,7 @@ turned into:
 - a clear next step
 
 This should feel useful to someone planning a project, running research,
-writing a document, or building a product.
+writing a document, or organizing delivery work.
 
 ## Why Teams Stay
 

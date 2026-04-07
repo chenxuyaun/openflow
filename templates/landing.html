@@ -2,9 +2,9 @@
 {% block content %}
 <section class="hero">
   <div class="eyebrow">AI Collaboration Workspace</div>
-  <h1>Describe what you want to finish. OpenFlow will keep the materials organized, preserve the progress, and suggest the next step.</h1>
+  <h1>Complex work keeps moving, even when every role starts in a fresh session.</h1>
   <p class="muted">
-    OpenFlow helps research, planning, writing, and delivery continue across fresh AI sessions without losing direction.
+    OpenFlow gives research, writing, planning, organization, and delivery work a stable workspace built on saved materials, visible progress, and a clear next step.
   </p>
   <div class="statline">
     {% for point in proof_points %}
@@ -15,8 +15,8 @@
 
 <section class="grid">
   <article class="panel">
-    <h2>Why It Feels Simple</h2>
-    <p>Start from a messy goal. OpenFlow turns it into a clear target, organized materials, visible progress, and a suggested next step.</p>
+    <h2>Messy Work In</h2>
+    <p>Bring in scattered notes, rough goals, partial drafts, and changing constraints without needing to pre-structure everything.</p>
     <div>
       <span class="tag">Research</span>
       <span class="tag">Writing</span>
@@ -26,25 +26,45 @@
     </div>
   </article>
   <article class="panel">
-    <h2>What OpenFlow Handles For You</h2>
-    <p>Behind the scenes, OpenFlow keeps every fresh session connected through saved materials, project records, and next-step guidance.</p>
+    <h2>Structured Workspace Out</h2>
+    <p>OpenFlow turns that messy starting point into a clear goal, organized materials, visible progress, and a suggested next step.</p>
     <div class="list-card">
-      <strong>No lost progress</strong>
-      <p class="muted">The work can pause, restart, or change roles without starting over.</p>
+      <strong>Fresh sessions continue safely</strong>
+      <p class="muted">The work can pause, restart, or change roles without losing the thread.</p>
     </div>
     <div class="list-card">
-      <strong>Shared materials stay visible</strong>
-      <p class="muted">The system keeps the important files, notes, and outcomes attached to the project.</p>
+      <strong>Advanced controls stay available</strong>
+      <p class="muted">Workflow, decisions, review, and material history remain available when deeper control is needed.</p>
     </div>
   </article>
 </section>
 
 <section class="panel">
+  <h2>Why This Is Different From Ordinary Chat Threads</h2>
+  <div class="grid">
+    <div class="list-card">
+      <strong>Ordinary chat flow</strong>
+      <p>The project drifts across long threads, hidden context, and fragile summaries. A fresh restart often means rebuilding the state by hand.</p>
+    </div>
+    <div class="list-card">
+      <strong>OpenFlow workspace</strong>
+      <p>The project continues from saved materials, visible records, and a clear next step, so every new session can pick up from files instead of guesswork.</p>
+    </div>
+  </div>
+</section>
+
+<section class="panel">
   <h2>Start A Workspace</h2>
+  <p class="muted">You only need to provide a goal and whatever notes, files, context, or constraints you already have.</p>
+  <div class="list-card">
+    <strong>Example</strong>
+    <p>Goal: organize scattered research into a clear briefing and next-step plan.</p>
+    <p class="muted">Context: interview notes, reference links, a half-written outline, and a deadline for review next week.</p>
+  </div>
   <form method="post" action="/">
     <p><label>Workspace name<br /><input type="text" name="project_name" style="width:100%" value="OpenFlow Workspace" /></label></p>
-    <p><label>What do you want to accomplish?<br /><input type="text" name="goal" style="width:100%" value="Turn a complex goal into coordinated progress." /></label></p>
-    <p><label>What materials, context, or constraints do you already have?<br /><textarea name="initial_prompt" style="width:100%;min-height:130px">Describe your goal, what you already know, what should be considered, and what kind of help or collaboration you expect.</textarea></label></p>
+    <p><label>What do you want to accomplish?<br /><input type="text" name="goal" style="width:100%" value="Turn scattered research into a clear briefing and next-step plan." /></label></p>
+    <p><label>What materials, context, or constraints do you already have?<br /><textarea name="initial_prompt" style="width:100%;min-height:130px">I have interview notes, reference links, an unfinished outline, and a review deadline next week. Help organize the materials, show the current progress, and guide the next step.</textarea></label></p>
     <p><button type="submit">Start Workspace</button></p>
   </form>
 </section>
@@ -73,12 +93,11 @@
 
 <section class="panel">
   <h2>Advanced Tools</h2>
-  <p class="muted">When you need deeper control, OpenFlow still exposes workflow graph, handoff, decision registry, and governance views.</p>
+  <p class="muted">OpenFlow keeps the default experience simple, but still provides deeper workflow, decision, review, and material history views when needed.</p>
   <div>
     {% for section in blueprint.demo_sections %}
     <span class="tag">{{ section }}</span>
     {% endfor %}
-    <div>
   </div>
 </section>
 {% endblock %}

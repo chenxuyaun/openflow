@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <div class="eyebrow">Workspace Ready</div>
+  <h1>{{ summary.project.project_name }} is ready to continue as a stable workspace.</h1>
+  <p>{{ summary.project.goal }}</p>
+  <p class="muted">Your goal, materials, and progress are now saved so every fresh session can continue from records instead of guesswork.</p>
+  <div class="statline">
+    <div class="stat">Work type: {{ summary.state.project_type_label }}</div>
+    <div class="stat">Current progress: {{ summary.governance.latest_review }}</div>
+    <div class="stat">Suggested next owner: {{ summary.next_role or "n/a" }}</div>
+  </div>
+</section>
+
+<section class="grid">
+  <article class="panel">
+    <h2>What You Want To Finish</h2>
+    <div class="list-card">
+      <strong>Current goal</strong>
+      <p>{{ summary.project.goal }}</p>
+    </div>
+    <h2>What OpenFlow Already Organized</h2>
+    <div class="list-card">
+      <strong>Collaboration setup</strong>
+      <p class="muted">{{ summary.state.collaboration_style }}</p>
+      <p>{{ summary.state.user_facing_roles|join(", ") }}</p>
+    </div>
+    <div class="list-card">
+      <strong>Materials ready</strong>
+      <p>{{ summary.state.research_slots|join(", ") }}</p>
+    </div>
+  </article>
+
+  <article class="panel">
+    <h2>Why You Are Starting Here</h2>
+    <div class="list-card">
+      <strong>Current state</strong>
+      <p>{{ summary.governance.why_current_state }}</p>
+    </div>
+    <h2>Suggested Next Step</h2>
+    {% if summary.latest_handoff %}
+    <div class="list-card">
+      <strong>{{ summary.latest_handoff.next_role_recommendation }}</strong>
+      <p>{{ summary.latest_handoff.next_role_reason }}</p>
+      <p class="muted">Why the system recommends this: {{ summary.why_next_role }}</p>
+      {% if summary.governance.confirm_waiting %}
+      <p class="muted">This next step needs an advanced review before it can start.</p>
+      {% endif %}
+      <form method="post" action="/projects/{{ project_id }}/handoffs/{{ summary.latest_handoff.handoff_id }}/advance">
+        <p><button type="submit">Start Suggested Next Step</button></p>
+      </form>
+    </div>
+    {% else %}
+    <div class="list-card">
+      <strong>No suggested next step yet</strong>
+      <p class="muted">Open the workspace overview to inspect the current state or start a work step manually.</p>
+    </div>
+    {% endif %}
+  </article>
+</section>
+
+<section class="panel">
+  <h2>Open The Workspace</h2>
+  <p class="muted">Use the workspace overview for the full long-running project view, or open materials first if you want to inspect the saved inputs.</p>
+  <p>
+    <a href="/projects/{{ project_id }}">Open Workspace Overview</a> |
+    <a href="/projects/{{ project_id }}/knowledge">Open Materials Center</a>
+  </p>
+</section>
+{% endblock %}

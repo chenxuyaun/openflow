@@ -175,8 +175,16 @@ def test_read_only_pages_render_real_project_data() -> None:
 
     landing_response = client.get("/")
     assert landing_response.status_code == 200
-    assert "Describe what you want to finish" in landing_response.text
-    assert "Why It Feels Simple" in landing_response.text
+    assert "Complex work keeps moving" in landing_response.text
+    assert "Messy Work In" in landing_response.text
+    assert "Why This Is Different From Ordinary Chat Threads" in landing_response.text
+    assert "Progress does not get lost" in landing_response.text
+
+    welcome_response = client.get(f"/projects/{project_id}/welcome")
+    assert welcome_response.status_code == 200
+    assert "Workspace Ready" in welcome_response.text
+    assert "Open Workspace Overview" in welcome_response.text
+    assert "Suggested Next Step" in welcome_response.text
 
     project_response = client.get(f"/projects/{project_id}")
     assert project_response.status_code == 200
@@ -296,7 +304,13 @@ def test_form_driven_project_flow_and_transcript_summary() -> None:
     )
     assert landing_response.status_code == 303
     project_url = landing_response.headers["location"]
-    project_id = project_url.rsplit("/", 1)[-1]
+    assert project_url.endswith("/welcome")
+    project_id = project_url.split("/")[-2]
+
+    welcome_response = client.get(project_url)
+    assert welcome_response.status_code == 200
+    assert "Workspace Ready" in welcome_response.text
+    assert "Start Suggested Next Step" in welcome_response.text or "No suggested next step yet" in welcome_response.text
 
     session_create_response = client.post(
         f"/projects/{project_id}/sessions",
@@ -592,6 +606,34 @@ def test_project_dashboard_shows_governance_and_task_board_link() -> None:
     assert "Suggested Next Step" in project_page.text
     assert "Why This Step Is Recommended" in project_page.text
     assert "Work type:" in project_page.text
+
+
+def test_welcome_page_handles_confirm_gated_next_step() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Create a project that requires a reviewed next step.",
+            "initial_prompt": "Create a workflow that hands off into System Architect for confirmation.",
+            "project_name": "Welcome Gate Demo",
+        },
+    )
+    project_id = bootstrap_response.json()["project_id"]
+    session_id = bootstrap_response.json()["session_id"]
+
+    complete_response = client.post(
+        f"/sessions/{session_id}/complete",
+        json={
+            "session_summary": "Bootstrap complete.",
+            "next_role_recommendation": "System Architect",
+            "next_role_reason": "Architecture confirmation is required.",
+            "acceptance_status": "pending_review",
+        },
+    )
+    assert complete_response.status_code == 200
+
+    welcome_response = client.get(f"/projects/{project_id}/welcome")
+    assert welcome_response.status_code == 200
+    assert "needs an advanced review before it can start" in welcome_response.text
 
 
 def test_changes_requested_reactivates_task_with_governance_reason() -> None:

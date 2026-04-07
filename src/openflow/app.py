@@ -66,10 +66,10 @@ def landing_page(request: Request):
             "title": "OpenFlow",
             "blueprint": blueprint,
             "proof_points": [
-                "Visible workflow graph",
-                "Fresh session inputs",
-                "Structured handoff and next role",
-                "Knowledge center and audit trail",
+                "Progress does not get lost",
+                "Every fresh session can continue from files",
+                "Materials stay organized",
+                "The next step stays visible",
             ],
         },
     )
@@ -88,7 +88,7 @@ def bootstrap_from_landing(
             project_name=project_name,
         )
     )
-    return RedirectResponse(url=f"/projects/{payload['project_id']}", status_code=303)
+    return RedirectResponse(url=f"/projects/{payload['project_id']}/welcome", status_code=303)
 
 
 @app.get("/project")
@@ -203,6 +203,20 @@ def project_page(project_id: str, request: Request):
             "summary": summary,
             "timeline": timeline["events"],
             "handoff_status": request.query_params.get("handoff_status"),
+        },
+    )
+
+
+@app.get("/projects/{project_id}/welcome")
+def welcome_page(project_id: str, request: Request):
+    summary = get_project_state(project_id)
+    return templates.TemplateResponse(
+        request,
+        "welcome.html",
+        {
+            "title": f"Welcome {project_id}",
+            "project_id": project_id,
+            "summary": summary,
         },
     )
 
