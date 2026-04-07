@@ -260,6 +260,34 @@ def test_bootstrap_auto_ingests_project_knowledge_items() -> None:
     assert len(state["user_facing_roles"]) >= 3
 
 
+def test_bootstrap_generates_system_foundation_files() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Create a file-driven cognitive execution system.",
+            "initial_prompt": "Need goal modeling, task graphing, role mapping, and execution capsules from project files.",
+            "project_name": "System Foundation Demo",
+            "preferred_project_mode": "delivery",
+        },
+    )
+    assert bootstrap_response.status_code == 200
+    project_id = bootstrap_response.json()["project_id"]
+
+    project_response = client.get("/project", params={"project_id": project_id})
+    assert project_response.status_code == 200
+    body = project_response.json()
+
+    assert body["goal_model"]["core_goal"] == "Create a file-driven cognitive execution system."
+    assert body["cognitive_state"]["validated_facts"]
+    assert body["cognitive_state"]["evidence_refs"]
+    assert body["plan_layers"]["strategic"]
+    assert body["plan_layers"]["phase_status"]
+    assert body["task_graph_v2"]["nodes"]
+    assert body["task_graph_v2"]["replan_sources"]
+    assert body["current_execution_capsule_preview"]["role_name"] == "Implementation Lead"
+    assert body["current_session_factory_preview"]["session_config_payload"]["role_name"] == "Implementation Lead"
+
+
 def test_explicit_project_mode_changes_bootstrap_shape() -> None:
     bootstrap_response = client.post(
         "/projects/bootstrap",
@@ -1007,6 +1035,9 @@ def test_project_summary_includes_recommended_work_package() -> None:
     assert work_package["ready_for_auto_advance"] is False
     assert work_package["auto_advance_blockers"]
 
+    project_payload = client.get("/project", params={"project_id": project_id}).json()
+    assert project_payload["current_execution_capsule_preview"]["required_files"]
+
 
 def test_decision_conflict_changes_recommendation_to_review() -> None:
     bootstrap_response = client.post(
@@ -1232,6 +1263,28 @@ def test_app_shell_and_landing_api_render_parallel_frontend() -> None:
     assert '<div id="app"></div>' in app_shell.text
 
 
+def test_app_project_routes_return_spa_shell() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Serve the two-page SPA shell from project routes.",
+            "initial_prompt": "Need the app project routes to resolve to the same frontend shell.",
+            "project_name": "App Shell Routes Demo",
+        },
+    )
+    project_id = bootstrap_response.json()["project_id"]
+
+    workspace_shell = client.get(f"/app/projects/{project_id}")
+    assert workspace_shell.status_code == 200
+    assert "/app-static/main.js" in workspace_shell.text
+    assert '<div id="app"></div>' in workspace_shell.text
+
+    config_shell = client.get(f"/app/projects/{project_id}/config")
+    assert config_shell.status_code == 200
+    assert "/app-static/main.js" in config_shell.text
+    assert '<div id="app"></div>' in config_shell.text
+
+
 def test_app_project_endpoints_return_workspace_payloads() -> None:
     bootstrap_response = client.post(
         "/projects/bootstrap",
@@ -1268,6 +1321,293 @@ def test_app_project_endpoints_return_workspace_payloads() -> None:
     tasks_payload = client.get(f"/api/app/projects/{project_id}/tasks")
     assert tasks_payload.status_code == 200
     assert "task_tree" in tasks_payload.json()["payload"]
+
+
+def test_app_chat_and_config_endpoints_return_two_page_aggregates() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Collapse the frontend into chat and config surfaces.",
+            "initial_prompt": "Need aggregate APIs for a chat-first workspace and a full configuration view.",
+            "project_name": "Two Page Demo",
+            "preferred_project_mode": "delivery",
+        },
+    )
+    project_id = bootstrap_response.json()["project_id"]
+
+    chat_payload = client.get(f"/api/app/projects/{project_id}/chat")
+    assert chat_payload.status_code == 200
+    chat = chat_payload.json()
+    assert chat["project"]["project_name"] == "Two Page Demo"
+    assert chat["recommended_work_package"]
+    assert "recommended_role" in chat["recommendation"]
+    assert "current_execution_capsule_preview" in chat
+    assert "current_session_factory_preview" in chat
+    assert "memory_pack_preview" in chat
+    assert "observability_snapshot" in chat
+    assert "improvement_snapshot" in chat
+    assert "session_detail" in chat
+
+    config_payload = client.get(f"/api/app/projects/{project_id}/config")
+    assert config_payload.status_code == 200
+    config = config_payload.json()
+    assert config["project"]["project_name"] == "Two Page Demo"
+    assert config["goal_model"]["core_goal"] == "Collapse the frontend into chat and config surfaces."
+    assert config["cognitive_state"]
+    assert config["plan_layers"]
+    assert config["task_graph_v2"]["nodes"]
+    assert config["role_profiles"]
+    assert config["capability_registry"]
+    assert config["node_capability_map"]
+    assert config["prewire_schemas"]["governance"]["policy_schema"] == "governance_policy_v1"
+
+
+def test_chat_message_endpoint_executes_simulated_step_and_updates_workspace() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Run a chat-driven execution loop.",
+            "initial_prompt": "Need a minimal runtime that writes transcript, observability, and memory from chat input.",
+            "project_name": "Chat Runtime Demo",
+            "preferred_project_mode": "delivery",
+        },
+    )
+    project_id = bootstrap_response.json()["project_id"]
+
+    message_response = client.post(
+        f"/api/app/projects/{project_id}/chat/messages",
+        json={
+            "project_id": project_id,
+            "message": "Continue the current step and record the outcome.",
+            "mode": "simulated",
+            "action": "continue",
+        },
+    )
+    assert message_response.status_code == 200
+    body = message_response.json()
+
+    assert body["mode"] == "simulated"
+    assert body["execution_result"]["status"] == "completed"
+    assert body["assistant_message"]
+    assert body["updated_chat_workspace"]["session_detail"]
+
+    session_payload = body["updated_chat_workspace"]["session_detail"]
+    transcript = session_payload["transcript"]
+    assert transcript[-2]["role"] == "user"
+    assert transcript[-1]["role"] == "assistant"
+    assert session_payload["observability_snapshot"]["recent_events"]
+    assert body["updated_chat_workspace"]["memory_pack_preview"]
+
+
+def test_chat_message_provider_mode_returns_not_configured() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Prepare a provider-backed runtime boundary.",
+            "initial_prompt": "Need a provider mode contract even before a real model is connected.",
+            "project_name": "Provider Boundary Demo",
+            "preferred_project_mode": "delivery",
+        },
+    )
+    project_id = bootstrap_response.json()["project_id"]
+
+    message_response = client.post(
+        f"/api/app/projects/{project_id}/chat/messages",
+        json={
+            "project_id": project_id,
+            "message": "Try the provider-backed execution path.",
+            "mode": "provider",
+            "action": "continue",
+        },
+    )
+    assert message_response.status_code == 200
+    body = message_response.json()
+
+    assert body["execution_result"]["status"] == "not_configured"
+    assert "not configured" in body["assistant_message"].lower()
+
+
+def test_chat_message_complete_action_auto_creates_handoff() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Auto-complete a chat-driven execution step.",
+            "initial_prompt": "Need complete actions to create a handoff without a separate manual completion step.",
+            "project_name": "Auto Complete Demo",
+            "preferred_project_mode": "delivery",
+        },
+    )
+    project_id = bootstrap_response.json()["project_id"]
+
+    message_response = client.post(
+        f"/api/app/projects/{project_id}/chat/messages",
+        json={
+            "project_id": project_id,
+            "message": "Finish the current step and prepare the next role.",
+            "mode": "simulated",
+            "action": "complete",
+        },
+    )
+    assert message_response.status_code == 200
+    body = message_response.json()
+
+    assert body["execution_result"]["status"] == "completed"
+    assert body["updated_chat_workspace"]["latest_handoff"]
+    assert body["updated_chat_workspace"]["latest_handoff"]["next_role_recommendation"] == "Review Operator"
+    assert body["updated_chat_workspace"]["session_detail"]["handoff"]
+    assert body["updated_chat_workspace"]["session_detail"]["session"]["status"] == "completed"
+
+
+def test_chat_message_provider_mode_can_use_mock_adapter() -> None:
+    os.environ["OPENFLOW_PROVIDER_ADAPTER"] = "mock"
+    try:
+        bootstrap_response = client.post(
+            "/projects/bootstrap",
+            json={
+                "goal": "Run provider mode through a mock adapter.",
+                "initial_prompt": "Need a stable provider contract before wiring a real model.",
+                "project_name": "Mock Provider Demo",
+                "preferred_project_mode": "delivery",
+            },
+        )
+        project_id = bootstrap_response.json()["project_id"]
+
+        message_response = client.post(
+            f"/api/app/projects/{project_id}/chat/messages",
+            json={
+                "project_id": project_id,
+                "message": "Execute through the provider adapter.",
+                "mode": "provider",
+                "action": "continue",
+            },
+        )
+        assert message_response.status_code == 200
+        body = message_response.json()
+
+        assert body["execution_result"]["status"] == "completed"
+        assert body["execution_result"]["structured_outputs"]["provider_adapter"] == "mock"
+    finally:
+        os.environ.pop("OPENFLOW_PROVIDER_ADAPTER", None)
+
+
+def test_session_detail_includes_capsule_memory_and_improvement_snapshots() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Drive a system node through a tracked session.",
+            "initial_prompt": "Need a session detail endpoint that exposes capsule, memory, observability, and improvement previews.",
+            "project_name": "Session System Detail Demo",
+        },
+    )
+    project_id = bootstrap_response.json()["project_id"]
+    session_id = bootstrap_response.json()["session_id"]
+
+    session_payload = client.get(f"/api/app/projects/{project_id}/session/{session_id}")
+    assert session_payload.status_code == 200
+    payload = session_payload.json()["payload"]
+
+    assert payload["execution_capsule"]["role_name"] == "Bootstrap Strategist"
+    assert "session_config_payload" in payload["execution_capsule"]
+    assert "source_resolution" in payload["execution_capsule"]
+    assert payload["session_factory_preview"]["session_config_payload"]["role_name"] == "Bootstrap Strategist"
+    assert payload["memory_pack_preview"]
+    assert {item["layer"] for item in payload["memory_pack_preview"]} == {"raw", "summary", "structured", "semantic", "operational"}
+    assert payload["observability_snapshot"]["recent_events"]
+    assert payload["improvement_snapshot"]
+    assert payload["improvement_snapshot"][-1]["rewrite_intents"]
+
+
+def test_system_apis_expose_graph_capsule_memory_and_logs() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Expose system graph and execution capsule APIs.",
+            "initial_prompt": "Need dedicated APIs for graph, capsule, memory, observability, and improvement state.",
+            "project_name": "System API Demo",
+            "preferred_project_mode": "delivery",
+        },
+    )
+    project_id = bootstrap_response.json()["project_id"]
+
+    graph_payload = client.get(f"/api/system/projects/{project_id}/graph")
+    assert graph_payload.status_code == 200
+    graph = graph_payload.json()
+    assert graph["goal_model"]["core_goal"] == "Expose system graph and execution capsule APIs."
+    assert graph["node_capability_map"]
+    assert graph["prewire_schemas"]["auto_launch"]["policy_schema"] == "auto_launch_policy_v1"
+
+    node_id = graph["task_graph_v2"]["nodes"][0]["node_id"]
+    capsule_payload = client.get(f"/api/system/projects/{project_id}/nodes/{node_id}/capsule")
+    assert capsule_payload.status_code == 200
+    assert capsule_payload.json()["execution_capsule"]["node_id"] == node_id
+    assert "launch_readiness" in capsule_payload.json()["execution_capsule"]
+
+    memory_payload = client.get(f"/api/system/projects/{project_id}/memory")
+    assert memory_payload.status_code == 200
+    assert memory_payload.json()["memory_packs"]
+    assert {item["layer"] for item in memory_payload.json()["memory_packs"]} == {"raw", "summary", "structured", "semantic", "operational"}
+
+    observability_payload = client.get(f"/api/system/projects/{project_id}/observability")
+    assert observability_payload.status_code == 200
+    assert observability_payload.json()["observability"]["progress_percent"] >= 0
+
+    improvement_payload = client.get(f"/api/system/projects/{project_id}/improvement")
+    assert improvement_payload.status_code == 200
+    assert improvement_payload.json()["improvements"]
+
+    roles_payload = client.get(f"/api/system/projects/{project_id}/roles")
+    assert roles_payload.status_code == 200
+    assert roles_payload.json()["role_profiles"]
+
+    capabilities_payload = client.get(f"/api/system/projects/{project_id}/capabilities")
+    assert capabilities_payload.status_code == 200
+    assert capabilities_payload.json()["capability_registry"]
+    assert capabilities_payload.json()["prewire_schemas"]["multi_user"]["attribution_enabled"] is True
+
+    mappings_payload = client.get(f"/api/system/projects/{project_id}/mappings")
+    assert mappings_payload.status_code == 200
+    assert mappings_payload.json()["node_capability_map"]
+
+    session_factory_payload = client.get(f"/api/system/projects/{project_id}/session-factory/{node_id}")
+    assert session_factory_payload.status_code == 200
+    assert "launch_readiness" in session_factory_payload.json()["session_factory_preview"]
+    assert "session_config_payload" in session_factory_payload.json()["session_factory_preview"]
+
+
+def test_hybrid_capability_mapping_and_dynamic_role_profiles_appear_for_conflict_states() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Review a project with conflicting material and blocker states.",
+            "initial_prompt": "Need review-heavy execution with research overload and visible blockers.",
+            "project_name": "Hybrid Capability Demo",
+            "preferred_project_mode": "research",
+        },
+    )
+    project_id = bootstrap_response.json()["project_id"]
+
+    ingest_response = client.post(
+        "/research-packs",
+        json={
+            "project_id": project_id,
+            "pack_title": "Overloaded research input",
+            "source_family": "workflow_handoff_methods",
+            "source_ref": "hybrid-capability-demo",
+            "raw_notes": "Lots of raw notes that are not yet synthesized.",
+            "synthesized_summary": "Short synthesis.",
+        },
+    )
+    assert ingest_response.status_code == 200
+
+    mappings_payload = client.get(f"/api/system/projects/{project_id}/mappings")
+    assert mappings_payload.status_code == 200
+    mappings = mappings_payload.json()["node_capability_map"]
+    assert any(item["role_name"] == "Research Curator" and item["dynamic_override"] for item in mappings)
+
+    roles_payload = client.get(f"/api/system/projects/{project_id}/roles")
+    assert roles_payload.status_code == 200
+    roles = roles_payload.json()["role_profiles"]
+    assert any(item["role_name"] == "Research Curator" and item["dynamic_profile"] for item in roles)
 
 
 def test_app_welcome_defaults_follow_research_mode() -> None:

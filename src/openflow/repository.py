@@ -11,21 +11,28 @@ from uuid import uuid4
 from datetime import datetime, timezone
 
 from openflow.models import (
+    AutoLaunchPrewire,
     BootstrapRequest,
+    ChatMessageRequest,
+    ChatMessageResponse,
     CapabilityRegistryEntry,
     CognitiveState,
     DecisionUpdateRequest,
     DecisionRecord,
     ExecutionCapsule,
+    ExecutionResult,
     GoalModel,
+    GovernancePrewire,
     HandoffRecord,
     HandoffReviewRequest,
     ImprovementRecord,
     KnowledgeItem,
     MemoryPack,
+    MultiUserPrewire,
     NodeCapabilityMapEntry,
     ObservabilityEvent,
     ObservabilitySnapshot,
+    ExportPrewire,
     PlanLayers,
     PlanStep,
     ProjectState,
@@ -41,6 +48,7 @@ from openflow.models import (
     TaskNode,
     TaskGraphNode,
     TaskGraphV2,
+    RewriteIntent,
     WorkflowEdge,
     WorkflowGraph,
     WorkflowNode,
@@ -128,6 +136,11 @@ class OpenFlowRepository:
     def _read_json(self, path: Path) -> object:
         with path.open("r", encoding="utf-8") as handle:
             return json.load(handle)
+
+    def _read_json_if_exists(self, path: Path, default: object) -> object:
+        if not path.exists():
+            return default
+        return self._read_json(path)
 
     def _load_seed_knowledge(self, project_id: str) -> list[KnowledgeItem]:
         payload = self._read_json(self.blueprint_dir / "knowledge_index.json")
@@ -1232,6 +1245,819 @@ class OpenFlowRepository:
             ),
         ]
 
+    def _goal_model_file(self, project_id: str) -> Path:
+        return self._system_dir(project_id) / "goal_model.json"
+
+    def _cognitive_state_file(self, project_id: str) -> Path:
+        return self._system_dir(project_id) / "cognitive_state.json"
+
+    def _workflow_graph_v2_file(self, project_id: str) -> Path:
+        return self._system_dir(project_id) / "workflow_graph_v2.json"
+
+    def _plan_layers_file(self, project_id: str) -> Path:
+        return self._system_dir(project_id) / "plan_layers.json"
+
+    def _task_graph_v2_file(self, project_id: str) -> Path:
+        return self._system_dir(project_id) / "task_graph_v2.json"
+
+    def _role_profiles_file(self, project_id: str) -> Path:
+        return self._system_dir(project_id) / "role_profiles.json"
+
+    def _capability_registry_file(self, project_id: str) -> Path:
+        return self._system_dir(project_id) / "capability_registry.json"
+
+    def _node_capability_map_file(self, project_id: str) -> Path:
+        return self._system_dir(project_id) / "node_capability_map.json"
+
+    def _memory_index_file(self, project_id: str) -> Path:
+        return self._system_dir(project_id) / "memory" / "memory_index.json"
+
+    def _observability_file(self, project_id: str) -> Path:
+        return self._system_dir(project_id) / "observability.json"
+
+    def _improvement_log_file(self, project_id: str) -> Path:
+        return self._system_dir(project_id) / "improvement_log.json"
+
+    def _prewire_file(self, project_id: str) -> Path:
+        return self._system_dir(project_id) / "prewire_schemas.json"
+
+    def _memory_ref(self, project_id: str, name: str) -> str:
+        return str(self._system_dir(project_id).joinpath("memory", name).relative_to(self.data_dir)).replace("\\", "/")
+
+    def _derive_goal_model(self, project_id: str, project_meta: dict[str, object]) -> GoalModel:
+        goal = str(project_meta["goal"])
+        initial_prompt = str(project_meta.get("initial_prompt", ""))
+        constraints = []
+        if "deadline" in initial_prompt.lower():
+            constraints.append("A delivery or review deadline is implied by the request.")
+        if str(project_meta.get("project_mode")) == "research":
+            constraints.append("Preserve traceability from raw material to synthesized insight.")
+        return GoalModel(
+            project_id=project_id,
+            core_goal=goal,
+            explicit_constraints=constraints,
+            implicit_constraints=[
+                "Continuity must survive fresh sessions.",
+                "Project state must remain recoverable from files.",
+            ],
+            anti_goals=[
+                "Do not depend on hidden runtime chat context.",
+                "Do not lose the reason for the next step.",
+            ],
+            success_criteria=[
+                "The next role can continue from files only.",
+                "Progress, decisions, and evidence remain inspectable.",
+            ],
+            milestone_signals=[
+                "A stable role and task graph exists.",
+                "A handoff or work package can be generated from current files.",
+            ],
+            risk_tolerance="medium",
+            priority_policy=[
+                "protect continuity",
+                "make the next step explicit",
+                "preserve evidence before speed",
+            ],
+        )
+
+    def _derive_cognitive_state(
+        self,
+        state: ProjectState,
+        project_meta: dict[str, object],
+        governance: dict[str, object],
+        materials: dict[str, object],
+        blocked_now: Optional[str],
+        latest_handoff: Optional[HandoffRecord],
+    ) -> CognitiveState:
+        validated_facts = [
+            f"Project mode is {state.project_mode}.",
+            f"{len(state.role_catalog)} roles are currently defined.",
+            f"{len(state.task_tree)} task nodes are tracked.",
+            f"{materials['organized_material_count']} organized material sets exist.",
+        ]
+        assumptions = []
+        if not latest_handoff:
+            assumptions.append("The first executable work package still needs to be started by a human.")
+        if materials["raw_source_count"] >= materials["synthesized_count"]:
+            assumptions.append("More source consolidation may be needed before later execution.")
+        open_questions = []
+        if not materials["organized_material_count"]:
+            open_questions.append("Which materials should be organized first?")
+        conflicts = []
+        if blocked_now:
+            conflicts.append(blocked_now)
+        if governance.get("confirm_waiting"):
+            conflicts.append("A confirm-gated review is still unresolved.")
+        current_gaps = [
+            "Need the next work package to stay aligned with durable memory.",
+        ]
+        if state.project_mode == "research":
+            current_gaps.append("Need stronger synthesis than raw material volume.")
+        return CognitiveState(
+            project_id=state.project_id,
+            validated_facts=validated_facts,
+            inferred_facts=[
+                f"The next active role is likely {state.user_facing_roles[0]}." if state.user_facing_roles else "The next active role must be inferred from the role catalog."
+            ],
+            active_assumptions=assumptions,
+            open_questions=open_questions,
+            conflicts=conflicts,
+            current_gaps=current_gaps,
+            evidence_refs=[
+                f"projects/{state.project_id}/project.json",
+                f"projects/{state.project_id}/task_tree.json",
+                f"projects/{state.project_id}/knowledge/knowledge_items.json",
+            ],
+            focus_now=governance.get("why_current_state", project_meta["goal"]),
+        )
+
+    def _derive_plan_layers(self, state: ProjectState) -> PlanLayers:
+        strategic = [
+            PlanStep(
+                step_id="strategic-continuity",
+                title="Preserve continuity through files",
+                objective="Keep progress readable across fresh sessions.",
+                inputs=["project.json", "workflow_graph.json", "knowledge/knowledge_items.json"],
+                outputs=["goal_model", "memory packs", "recommended work package"],
+                completion_signals=["A fresh role can continue from files only."],
+            )
+        ]
+        phases = [
+            PlanStep(
+                step_id=f"phase-{index + 1}",
+                title=task.title,
+                objective=task.title,
+                inputs=task.depends_on,
+                outputs=[task.task_id],
+                risks=[task.blocked_reason] if task.blocked_reason else [],
+                completion_signals=task.success_criteria,
+            )
+            for index, task in enumerate(state.task_tree)
+        ]
+        milestones = [
+            PlanStep(
+                step_id=f"milestone-{task.task_id}",
+                title=f"{task.owner_role} milestone",
+                objective=task.title,
+                outputs=[f"session:{task.owner_role}", f"handoff:{task.task_id}"],
+                completion_signals=task.success_criteria,
+            )
+            for task in state.task_tree
+        ]
+        node_plan = [
+            PlanStep(
+                step_id=f"node-{task.task_id}",
+                title=task.title,
+                objective=f"Complete node {task.task_id} with role {task.owner_role}.",
+                inputs=task.depends_on,
+                outputs=[f"task:{task.task_id}"],
+                risks=[task.blocked_reason] if task.blocked_reason else [],
+                completion_signals=task.success_criteria,
+            )
+            for task in state.task_tree
+        ]
+        phase_status = [f"{task.task_id}:{task.status.value}" for task in state.task_tree]
+        return PlanLayers(
+            project_id=state.project_id,
+            strategic=strategic,
+            phases=phases,
+            milestones=milestones,
+            node_plan=node_plan,
+            phase_status=phase_status,
+            last_rewritten_by="system_refresh",
+        )
+
+    def _derive_task_graph_v2(self, state: ProjectState) -> TaskGraphV2:
+        nodes = [
+            TaskGraphNode(
+                node_id=f"node-{task.task_id}",
+                task_id=task.task_id,
+                title=task.title,
+                phase=state.project_mode,
+                node_type="review" if task.owner_role == "Review Operator" else ("research" if task.owner_role == "Research Curator" else "execution"),
+                intent=task.title,
+                owner_role=task.owner_role,
+                dependency_nodes=[f"node-{item}" for item in task.depends_on],
+                blocking_conditions=[task.blocked_reason] if task.blocked_reason else [],
+                completion_conditions=task.success_criteria,
+                rollback_conditions=["replan_required", "changes_requested"] if task.owner_role != "Bootstrap Strategist" else [],
+                parallelizable=len(task.depends_on) == 0 and task.owner_role not in {"Review Operator", "System Architect"},
+                needs_human_confirm=task.owner_role in {"System Architect", "Review Operator"},
+                needs_material_refresh=task.owner_role == "Research Curator",
+                status=task.status.value,
+            )
+            for task in state.task_tree
+        ]
+        edges = []
+        for node in nodes:
+            for dependency in node.dependency_nodes:
+                edges.append(WorkflowEdge(from_node=dependency, to_node=node.node_id, condition="dependency"))
+        replan_sources = [node.node_id for node in nodes if "replan_required" in node.rollback_conditions]
+        return TaskGraphV2(project_id=state.project_id, nodes=nodes, edges=edges, replan_sources=replan_sources)
+
+    def _derive_role_profiles(
+        self,
+        role_catalog: list[RoleInstanceSpec],
+        dynamic_overrides: Optional[dict[str, RoleProfile]] = None,
+    ) -> list[RoleProfile]:
+        profiles = []
+        overrides = dynamic_overrides or {}
+        for role in role_catalog:
+            if role.role_name in overrides:
+                profiles.append(overrides[role.role_name])
+                continue
+            mindset = "Rational and traceable execution from files."
+            if "Research" in role.role_name:
+                mindset = "Separate raw material from reusable knowledge."
+            elif "Review" in role.role_name:
+                mindset = "Challenge weak assumptions and protect downstream quality."
+            profiles.append(
+                RoleProfile(
+                    role_name=role.role_name,
+                    mission=role.objective,
+                    mindset=mindset,
+                    authority_scope=["read_files", "produce_handoff", "update_memory"],
+                    output_contract=role.output_contract,
+                    focus_points=role.preferred_workflow,
+                    guardrails=role.tools_guidance,
+                    preferred_tools=["files", "handoff", "knowledge", "timeline"],
+                )
+            )
+        return profiles
+
+    def _dynamic_role_overrides(
+        self,
+        state: ProjectState,
+        governance: dict[str, object],
+        materials: dict[str, object],
+        blocked_now: Optional[str],
+    ) -> dict[str, RoleProfile]:
+        overrides: dict[str, RoleProfile] = {}
+        if blocked_now or governance.get("confirm_waiting"):
+            overrides["Review Operator"] = RoleProfile(
+                role_name="Review Operator",
+                mission="Resolve the active blocker before downstream execution continues.",
+                mindset="Act as a risk governor and contradiction resolver.",
+                profile_source="dynamic",
+                dynamic_profile=True,
+                authority_scope=["read_files", "review_handoff", "request_replan", "approve_next_step"],
+                output_contract=["review outcome", "block resolution note", "updated next-step path"],
+                focus_points=["inspect blocker", "check governance state", "preserve downstream safety"],
+                guardrails=["Do not advance execution without an explicit review outcome."],
+                preferred_tools=["handoff", "timeline", "decision_registry", "task_graph"],
+            )
+        if materials["raw_source_count"] >= materials["synthesized_count"]:
+            overrides["Research Curator"] = RoleProfile(
+                role_name="Research Curator",
+                mission="Collapse excess raw material into reusable synthesized memory for later fresh sessions.",
+                mindset="Reduce cognitive load without losing traceability.",
+                profile_source="dynamic",
+                dynamic_profile=True,
+                authority_scope=["read_files", "organize_materials", "update_memory"],
+                output_contract=["synthesized material pack", "evidence map", "decision support summary"],
+                focus_points=["find reusable signals", "reduce raw-material dominance", "prepare downstream files"],
+                guardrails=["Keep raw and synthesized layers explicitly separate."],
+                preferred_tools=["knowledge_index", "material_groups", "memory_pack"],
+            )
+        if state.project_mode == "multimodal":
+            overrides["System Architect"] = RoleProfile(
+                role_name="System Architect",
+                mission="Stabilize multimodal execution boundaries before delivery expands.",
+                mindset="Favor clear interface seams over speed.",
+                profile_source="dynamic",
+                dynamic_profile=True,
+                authority_scope=["read_files", "set_contracts", "define_capsule"],
+                output_contract=["execution contract", "file contract", "verification boundary"],
+                focus_points=["input/output seams", "planning-to-execution bridge", "launch readiness"],
+                guardrails=["Do not leave multimodal paths ambiguous."],
+                preferred_tools=["workflow_graph", "task_graph", "session_factory"],
+            )
+        return overrides
+
+    def _derive_capability_registry(self, state: ProjectState) -> list[CapabilityRegistryEntry]:
+        registry = [
+            CapabilityRegistryEntry(
+                entry_id="agent-bootstrap-strategist",
+                entry_type="agent",
+                name="Bootstrap Strategist",
+                purpose="Turn a request into a structured workflow and execution model.",
+                template_type="dynamic_ready",
+                applies_to=["bootstrap", "replan"],
+                activation_rules=["Use when the project needs reframing or replanning."],
+            ),
+            CapabilityRegistryEntry(
+                entry_id="mcp-file-memory",
+                entry_type="mcp",
+                name="File Memory Reader",
+                purpose="Read durable project files instead of hidden session context.",
+                template_type="core",
+                applies_to=["all"],
+                activation_rules=["Always available for fresh-session continuity."],
+            ),
+            CapabilityRegistryEntry(
+                entry_id="mcp-project-state",
+                entry_type="mcp",
+                name="Project State Reader",
+                purpose="Inspect current project state, task status, and workflow position.",
+                template_type="core",
+                applies_to=["all"],
+                activation_rules=["Use before deciding the next node or verifying readiness."],
+            ),
+            CapabilityRegistryEntry(
+                entry_id="skill-structured-summarization",
+                entry_type="skill",
+                name="Structured Summarization",
+                purpose="Compress execution history into reusable memory packs.",
+                template_type="core",
+                applies_to=["all"],
+                activation_rules=["Use after each node execution and review."],
+            ),
+            CapabilityRegistryEntry(
+                entry_id="skill-progress-logging",
+                entry_type="skill",
+                name="Progress Logging",
+                purpose="Record node inputs, outputs, progress, and failure reasons.",
+                template_type="core",
+                applies_to=["all"],
+                activation_rules=["Use during every node execution."],
+            ),
+            CapabilityRegistryEntry(
+                entry_id="tool-session-factory",
+                entry_type="tool",
+                name="Session Factory",
+                purpose="Assemble launch-ready session configuration from capability mapping and memory packs.",
+                template_type="prewire",
+                applies_to=["all"],
+                activation_rules=["Use when preparing a new fresh session."],
+            ),
+            CapabilityRegistryEntry(
+                entry_id="prompt-node-execution",
+                entry_type="prompt_template",
+                name="Node Execution Template",
+                purpose="Base prompt structure for executing a mapped node from files.",
+                template_type="default",
+                applies_to=["all"],
+                activation_rules=["Used unless a dynamic prompt override exists."],
+            ),
+            CapabilityRegistryEntry(
+                entry_id="verifier-launch-readiness",
+                entry_type="verifier",
+                name="Launch Readiness Verifier",
+                purpose="Check whether a node has enough files, memory, and approvals to launch.",
+                template_type="default",
+                applies_to=["all"],
+                activation_rules=["Run before session factory emits a launch-ready configuration."],
+            ),
+            CapabilityRegistryEntry(
+                entry_id="summarizer-memory-pack",
+                entry_type="summarizer",
+                name="Memory Pack Summarizer",
+                purpose="Generate summary, structured, semantic, and operational memory layers.",
+                template_type="default",
+                applies_to=["all"],
+                activation_rules=["Use after each session completion and significant review action."],
+            ),
+        ]
+        for role in state.role_catalog:
+            registry.append(
+                CapabilityRegistryEntry(
+                    entry_id=f"agent-{self._slug(role.role_name)}",
+                    entry_type="agent",
+                    name=role.role_name,
+                    purpose=role.objective,
+                    template_type="role_default",
+                    applies_to=[state.project_mode, role.role_name],
+                    activation_rules=[f"Use when {role.role_name} owns the current node."],
+                )
+            )
+        return registry
+
+    def _node_prompt_template(self, role_name: str, node_title: str) -> str:
+        return (
+            f"You are {role_name}. Read the mapped files first, stay inside the declared output contract, "
+            f"and complete the node objective: {node_title}. Preserve continuity through files, not hidden chat context."
+        )
+
+    def _derive_node_capability_map(
+        self,
+        state: ProjectState,
+        task_graph: TaskGraphV2,
+        role_profiles: list[RoleProfile],
+        governance: dict[str, object],
+        materials: dict[str, object],
+        blocked_now: Optional[str],
+        recommended_work_package: Optional[dict[str, object]] = None,
+    ) -> list[NodeCapabilityMapEntry]:
+        dynamic_overrides = self._dynamic_role_overrides(state, governance, materials, blocked_now)
+        entries = []
+        for node in task_graph.nodes:
+            required_files = self._default_files_for_role(state.project_id, node.owner_role, state.project_mode)
+            if recommended_work_package and recommended_work_package.get("recommended_role") == node.owner_role:
+                recommended_files = list(recommended_work_package.get("recommended_files", []))
+                if recommended_files:
+                    required_files = recommended_files
+            mcp_set = ["File Memory Reader", "Project State Reader"]
+            skill_set = ["Structured Summarization", "Progress Logging"]
+            resolution_source = "registry"
+            if node.owner_role == "Research Curator":
+                skill_set.append("Research Consolidation")
+            if node.owner_role == "Review Operator":
+                skill_set.append("Review And Risk Check")
+            if node.owner_role in dynamic_overrides:
+                resolution_source = node.owner_role in {"Review Operator", "Research Curator"} and "hybrid" or "dynamic"
+                skill_set.extend(["Dynamic Role Override"])
+            role_profile = next((item for item in role_profiles if item.role_name == node.owner_role), None)
+            if role_profile and role_profile.dynamic_profile and resolution_source == "registry":
+                resolution_source = "dynamic"
+            fallback_roles = ["Review Operator"] if node.owner_role != "Review Operator" else ["Bootstrap Strategist"]
+            entries.append(
+                NodeCapabilityMapEntry(
+                    node_id=node.node_id,
+                    role_name=node.owner_role,
+                    agent_profile=node.owner_role,
+                    mcp_set=mcp_set,
+                    skill_set=skill_set,
+                    tool_set=["project_files", "knowledge_index", "timeline"],
+                    prompt_template=self._node_prompt_template(node.owner_role, node.title),
+                    required_files=required_files,
+                    output_files=[
+                        f"projects/{state.project_id}/sessions/{{session_id}}/handoff.json",
+                        f"projects/{state.project_id}/system/memory/operational_memory.json",
+                    ],
+                    verification_policy=["Leave a structured result.", "Preserve the next-step reason."],
+                    observability_policy=["log_capabilities", "log_inputs", "log_outputs", "log_progress"],
+                    resolution_source=resolution_source,
+                    precedence=10 if resolution_source in {"dynamic", "hybrid"} else 100,
+                    fallback_roles=fallback_roles,
+                    dynamic_override=resolution_source in {"dynamic", "hybrid"},
+                    session_factory_policy=["require_memory_pack", "require_required_files", "check_governance_state"],
+                )
+            )
+        return entries
+
+    def _derive_memory_packs(
+        self,
+        state: ProjectState,
+        project_meta: dict[str, object],
+        latest_handoff: Optional[HandoffRecord],
+        materials: dict[str, object],
+        recommendation: dict[str, object],
+    ) -> list[MemoryPack]:
+        raw_refs = [f"projects/{state.project_id}/project.json"]
+        if latest_handoff:
+            raw_refs.append(f"projects/{state.project_id}/sessions/{latest_handoff.session_id}/handoff.json")
+        return [
+            MemoryPack(
+                pack_id="raw-memory",
+                layer="raw",
+                title="Raw project memory",
+                summary="Direct references to raw project artifacts and recent handoff/session files.",
+                refs=raw_refs,
+                keywords=["raw", "artifacts", "session_files"],
+                payload={
+                    "artifact_refs": raw_refs,
+                    "latest_handoff_id": latest_handoff.handoff_id if latest_handoff else None,
+                },
+            ),
+            MemoryPack(
+                pack_id="summary-memory",
+                layer="summary",
+                title="Project summary memory",
+                summary=str(project_meta["goal"]),
+                refs=raw_refs,
+                keywords=[state.project_mode, "project_goal", "next_step"],
+                payload={
+                    "project_mode": state.project_mode,
+                    "latest_recommended_role": recommendation["recommended_role"],
+                },
+            ),
+            MemoryPack(
+                pack_id="structured-memory",
+                layer="structured",
+                title="Structured execution memory",
+                summary=(
+                    f"Roles: {', '.join(state.user_facing_roles)}. "
+                    f"Organized materials: {materials['organized_material_count']}. "
+                    f"Recommendation: {recommendation['recommended_role']}."
+                ),
+                refs=[
+                    f"projects/{state.project_id}/task_tree.json",
+                    f"projects/{state.project_id}/knowledge/knowledge_items.json",
+                    f"projects/{state.project_id}/decisions.json",
+                ],
+                keywords=["roles", "materials", "decisions", "recommendation"],
+                payload={
+                    "roles": state.user_facing_roles,
+                    "materials": materials,
+                    "recommendation": {
+                        "role": recommendation["recommended_role"],
+                        "action": recommendation["recommended_action"],
+                    },
+                },
+            ),
+            MemoryPack(
+                pack_id="semantic-memory",
+                layer="semantic",
+                title="Semantic memory pack",
+                summary="Topic and relationship summary for the current project state.",
+                refs=[
+                    f"projects/{state.project_id}/knowledge/knowledge_items.json",
+                    f"projects/{state.project_id}/system/task_graph_v2.json",
+                ],
+                keywords=[
+                    state.project_mode,
+                    "continuity",
+                    "handoff",
+                    str(recommendation["recommended_role"]),
+                    str(recommendation["recommended_action"]),
+                ],
+                payload={
+                    "themes": [state.project_mode, "workflow_continuity", "next_step_reasoning"],
+                    "entities": state.user_facing_roles,
+                    "relations": [
+                        {"from": "materials", "to": recommendation["recommended_role"], "type": "influences"},
+                        {"from": "workflow", "to": recommendation["recommended_action"], "type": "suggests"},
+                    ],
+                },
+            ),
+            MemoryPack(
+                pack_id="operational-memory",
+                layer="operational",
+                title="Operational memory pack",
+                summary=f"Next focus: {recommendation['recommended_reason']}",
+                refs=self._default_files_for_role(state.project_id, str(recommendation["recommended_role"]), state.project_mode),
+                keywords=[str(recommendation["recommended_role"]), str(recommendation["recommended_action"]), "next_focus"],
+                payload={
+                    "next_role": recommendation["recommended_role"],
+                    "next_action": recommendation["recommended_action"],
+                    "must_read_first": self._default_files_for_role(state.project_id, str(recommendation["recommended_role"]), state.project_mode),
+                },
+            ),
+        ]
+
+    def _session_factory_preview(
+        self,
+        state: ProjectState,
+        node: TaskGraphNode,
+        mapped: NodeCapabilityMapEntry,
+        memory_packs: list[MemoryPack],
+        latest_handoff: Optional[HandoffRecord],
+    ) -> dict[str, object]:
+        missing_dependencies: list[str] = []
+        if node.needs_human_confirm:
+            missing_dependencies.append("This node still requires human confirmation before launch.")
+        if not mapped.required_files:
+            missing_dependencies.append("No required input files were resolved for this node.")
+        if mapped.memory_read_policy and not memory_packs:
+            missing_dependencies.append("No memory packs are available for this node.")
+        if node.owner_role == "Review Operator" and latest_handoff is None:
+            missing_dependencies.append("Review cannot launch because no handoff exists yet.")
+        launch_readiness = len(missing_dependencies) == 0
+        return {
+            "node_id": node.node_id,
+            "launch_readiness": launch_readiness,
+            "missing_dependencies": missing_dependencies,
+            "required_files": mapped.required_files,
+            "memory_pack_refs": [f"projects/{state.project_id}/system/memory/{item.pack_id}.json" for item in memory_packs],
+            "session_config_payload": {
+                "role_name": node.owner_role,
+                "objective": node.intent,
+                "agent_profile": mapped.agent_profile,
+                "mcp_set": mapped.mcp_set,
+                "skill_set": mapped.skill_set,
+                "tool_set": mapped.tool_set,
+                "prompt_template": mapped.prompt_template,
+                "memory_read_policy": mapped.memory_read_policy,
+                "memory_write_policy": mapped.memory_write_policy,
+                "verification_policy": mapped.verification_policy,
+            },
+        }
+
+    def _derive_execution_capsules(
+        self,
+        state: ProjectState,
+        task_graph: TaskGraphV2,
+        capability_map: list[NodeCapabilityMapEntry],
+        memory_packs: list[MemoryPack],
+        latest_handoff: Optional[HandoffRecord],
+    ) -> list[ExecutionCapsule]:
+        memory_refs = [self._memory_ref(state.project_id, "memory_index.json")] + [f"projects/{state.project_id}/system/memory/{item.pack_id}.json" for item in memory_packs]
+        capsules = []
+        for node in task_graph.nodes:
+            mapped = next(item for item in capability_map if item.node_id == node.node_id)
+            preview = self._session_factory_preview(state, node, mapped, memory_packs, latest_handoff)
+            capsules.append(
+                ExecutionCapsule(
+                    project_id=state.project_id,
+                    node_id=node.node_id,
+                    role_name=node.owner_role,
+                    session_intent=node.intent,
+                    agent_profile=mapped.agent_profile,
+                    mcp_set=mapped.mcp_set,
+                    skill_set=mapped.skill_set,
+                    tool_set=mapped.tool_set,
+                    prompt_template=mapped.prompt_template,
+                    required_files=mapped.required_files,
+                    output_files=mapped.output_files,
+                    memory_pack_refs=memory_refs,
+                    verification_policy=mapped.verification_policy,
+                    observability_policy=mapped.observability_policy,
+                    session_config_payload=preview["session_config_payload"],
+                    launch_readiness=preview["launch_readiness"],
+                    missing_dependencies=preview["missing_dependencies"],
+                    audit_requirements=["record_capabilities", "record_memory_refs", "record_output_files"],
+                    source_resolution=mapped.resolution_source,
+                )
+            )
+        return capsules
+
+    def _derive_observability_snapshot(
+        self,
+        state: ProjectState,
+        task_graph: TaskGraphV2,
+        latest_handoff: Optional[HandoffRecord],
+        recommendation: dict[str, object],
+        governance: dict[str, object],
+    ) -> ObservabilitySnapshot:
+        completed = len([task for task in state.task_tree if task.status == SessionStatus.completed])
+        progress_percent = int((completed / len(state.task_tree)) * 100) if state.task_tree else 0
+        current_node_id = next((node.node_id for node in task_graph.nodes if node.owner_role == recommendation["recommended_role"]), None)
+        events = [
+            ObservabilityEvent(
+                event_id=f"obs-{state.project_id}-bootstrap",
+                event_type="project_state",
+                title="Project state loaded",
+                detail=f"Project is in mode {state.project_mode} with {len(state.task_tree)} task nodes.",
+                refs=[f"projects/{state.project_id}/project.json"],
+            ),
+            ObservabilityEvent(
+                event_id=f"obs-{state.project_id}-recommendation",
+                event_type="recommendation",
+                title="Next work package prepared",
+                detail=str(recommendation["recommended_reason"]),
+                refs=[f"projects/{state.project_id}/task_tree.json"],
+            ),
+        ]
+        if latest_handoff:
+            events.insert(
+                0,
+                ObservabilityEvent(
+                    event_id=f"obs-{latest_handoff.handoff_id}",
+                    event_type="handoff",
+                    title="Latest handoff available",
+                    detail=latest_handoff.session_summary,
+                    refs=[f"projects/{state.project_id}/sessions/{latest_handoff.session_id}/handoff.json"],
+                ),
+            )
+        return ObservabilitySnapshot(
+            project_id=state.project_id,
+            current_phase=state.project_mode,
+            current_node_id=current_node_id,
+            current_role=str(recommendation["recommended_role"]),
+            progress_percent=progress_percent,
+            recent_events=events[:5],
+            current_status=governance.get("latest_review", "active"),
+        )
+
+    def _derive_improvement_record(
+        self,
+        state: ProjectState,
+        recommendation: dict[str, object],
+        next_step: dict[str, object],
+        blocked_now: Optional[str],
+    ) -> ImprovementRecord:
+        plan_updates = [f"Keep the next focus on {recommendation['recommended_role']}."]
+        mapping_updates = ["Refresh node-to-capability mappings after every state change."]
+        next_focus = [str(recommendation["recommended_reason"])]
+        summary = "Continue from current project state without losing file-based continuity."
+        rewrite_intents = [
+            RewriteIntent(
+                target_type="node_capability_map",
+                target_id=str(recommendation["recommended_role"]),
+                action="refresh_priority",
+                reason="Keep the capability map aligned with the current recommended role.",
+                risk_level="low",
+                auto_applied=True,
+            )
+        ]
+        if blocked_now:
+            summary = f"Resolve the current block before expanding execution: {blocked_now}"
+            plan_updates.append("Address the explicit block before creating downstream work.")
+            rewrite_intents.append(
+                RewriteIntent(
+                    target_type="plan_layers",
+                    target_id="phase-status",
+                    action="reprioritize_block_resolution",
+                    reason=blocked_now,
+                    risk_level="medium",
+                    auto_applied=False,
+                )
+            )
+        if next_step["state"] == "review_needed":
+            summary = "Review feedback must be resolved before the next execution step."
+            mapping_updates.append("Keep review-oriented capabilities at the top of the next node capsule.")
+            rewrite_intents.append(
+                RewriteIntent(
+                    target_type="role_profile",
+                    target_id="Review Operator",
+                    action="elevate_review_authority",
+                    reason="Review has become the gating condition for the next step.",
+                    risk_level="low",
+                    auto_applied=True,
+                )
+            )
+        return ImprovementRecord(
+            improvement_id=f"improvement-{uuid4().hex[:8]}",
+            summary=summary,
+            plan_updates=plan_updates,
+            mapping_updates=mapping_updates,
+            next_focus=next_focus,
+            rewrite_intents=rewrite_intents,
+        )
+
+    def _derive_prewire_schemas(self) -> dict[str, object]:
+        return {
+            "multi_user": MultiUserPrewire().model_dump(mode="json"),
+            "export": ExportPrewire().model_dump(mode="json"),
+            "governance": GovernancePrewire().model_dump(mode="json"),
+            "auto_launch": AutoLaunchPrewire().model_dump(mode="json"),
+        }
+
+    def _write_system_state(
+        self,
+        state: ProjectState,
+        project_meta: dict[str, object],
+        latest_handoff: Optional[HandoffRecord],
+        recommendation: dict[str, object],
+        next_step: dict[str, object],
+        materials: dict[str, object],
+        governance: dict[str, object],
+        blocked_now: Optional[str],
+    ) -> None:
+        goal_model = self._derive_goal_model(state.project_id, project_meta)
+        cognitive_state = self._derive_cognitive_state(state, project_meta, governance, materials, blocked_now, latest_handoff)
+        plan_layers = self._derive_plan_layers(state)
+        task_graph = self._derive_task_graph_v2(state)
+        dynamic_overrides = self._dynamic_role_overrides(state, governance, materials, blocked_now)
+        role_profiles = self._derive_role_profiles(state.role_catalog, dynamic_overrides)
+        capability_registry = self._derive_capability_registry(state)
+        capability_map = self._derive_node_capability_map(
+            state,
+            task_graph,
+            role_profiles,
+            governance,
+            materials,
+            blocked_now,
+            {"recommended_role": recommendation["recommended_role"], "recommended_files": self._default_files_for_role(state.project_id, str(recommendation["recommended_role"]), state.project_mode)},
+        )
+        memory_packs = self._derive_memory_packs(state, project_meta, latest_handoff, materials, recommendation)
+        observability = self._derive_observability_snapshot(state, task_graph, latest_handoff, recommendation, governance)
+        improvement_record = self._derive_improvement_record(state, recommendation, next_step, blocked_now)
+        capsules = self._derive_execution_capsules(state, task_graph, capability_map, memory_packs, latest_handoff)
+        prewire_schemas = self._derive_prewire_schemas()
+
+        self._write_json(self._goal_model_file(state.project_id), goal_model.model_dump(mode="json"))
+        self._write_json(self._cognitive_state_file(state.project_id), cognitive_state.model_dump(mode="json"))
+        self._write_json(self._workflow_graph_v2_file(state.project_id), state.workflow_graph.model_dump(mode="json"))
+        self._write_json(self._plan_layers_file(state.project_id), plan_layers.model_dump(mode="json"))
+        self._write_json(self._task_graph_v2_file(state.project_id), task_graph.model_dump(mode="json"))
+        self._write_json(self._role_profiles_file(state.project_id), [item.model_dump(mode="json") for item in role_profiles])
+        self._write_json(self._capability_registry_file(state.project_id), [item.model_dump(mode="json") for item in capability_registry])
+        self._write_json(self._node_capability_map_file(state.project_id), [item.model_dump(mode="json") for item in capability_map])
+        self._write_json(self._memory_index_file(state.project_id), [item.model_dump(mode="json") for item in memory_packs])
+        for item in memory_packs:
+            self._write_json(self._system_dir(state.project_id) / "memory" / f"{item.pack_id}.json", item.model_dump(mode="json"))
+        self._write_json(self._observability_file(state.project_id), observability.model_dump(mode="json"))
+        self._write_json(self._prewire_file(state.project_id), prewire_schemas)
+        improvement_log = []
+        if self._improvement_log_file(state.project_id).exists():
+            improvement_log = list(self._read_json(self._improvement_log_file(state.project_id)))
+        improvement_log.append(improvement_record.model_dump(mode="json"))
+        self._write_json(self._improvement_log_file(state.project_id), improvement_log[-20:])
+        for capsule in capsules:
+            self._write_json(self._capsules_dir(state.project_id) / f"{capsule.node_id}.json", capsule.model_dump(mode="json"))
+
+    def _refresh_system_state(self, project_id: str) -> None:
+        state = self.get_project_state(project_id)
+        project_meta = self._read_json(self._project_dir(project_id) / "project.json")
+        latest_handoff = None
+        for session in sorted(state.sessions, key=lambda item: item.created_at, reverse=True):
+            handoff_path = self._session_dir(project_id, session.session_id) / "handoff.json"
+            if handoff_path.exists():
+                latest_handoff = HandoffRecord.model_validate(self._read_json(handoff_path))
+                break
+        governance = self._governance_summary(state, latest_handoff)
+        blocked_now = next((task.blocked_reason for task in state.task_tree if task.blocked_reason), None)
+        materials = self._materials_summary(state)
+        recommendation = self._recommendation_view(state, latest_handoff, governance, materials, blocked_now)
+        next_step = self._next_step_view(latest_handoff, governance, recommendation) if latest_handoff else {
+            "state": recommendation["recommended_action"] == "organize_materials" and "research_gap" or "none",
+            "message": recommendation["recommended_reason"] if recommendation["recommended_action"] == "organize_materials" else "No suggested next step has been written yet.",
+            "actions": ["organize_materials"] if recommendation["recommended_action"] == "organize_materials" else ["start_first_step"],
+            "primary_label": "Organize Materials" if recommendation["recommended_action"] == "organize_materials" else "Start First Work Step",
+        }
+        self._write_system_state(state, dict(project_meta), latest_handoff, recommendation, next_step, materials, governance, blocked_now)
+
     def _session_knowledge_items(
         self,
         project_id: str,
@@ -1377,6 +2203,7 @@ class OpenFlowRepository:
             decision_ids=request.decision_ids,
         )
         self._append_knowledge_items(request.project_id, [raw_item, synthesized_item])
+        self._refresh_system_state(request.project_id)
         return {
             "project_id": request.project_id,
             "items": [
@@ -1436,6 +2263,7 @@ class OpenFlowRepository:
                 "INSERT OR REPLACE INTO decisions(decision_id, project_id, title, status) VALUES (?, ?, ?, ?)",
                 (updated.decision_id, project_id, updated.title, updated.status),
             )
+        self._refresh_system_state(project_id)
         return updated.model_dump(mode="json")
 
     def _apply_review_action_to_tasks(
@@ -1512,6 +2340,7 @@ class OpenFlowRepository:
             handoff.model_dump(mode="json"),
         )
         self._apply_review_action_to_tasks(handoff.project_id, session, handoff, action)
+        self._refresh_system_state(handoff.project_id)
         return {
             "handoff_id": handoff.handoff_id,
             "status": handoff.status,
@@ -1608,6 +2437,7 @@ class OpenFlowRepository:
             self._project_file_knowledge_items(project_id, project_name, request.goal, session_id)
             + self._git_commit_knowledge_items(project_id),
         )
+        self._refresh_system_state(project_id)
 
         return {
             "project_id": project_id,
@@ -1643,6 +2473,7 @@ class OpenFlowRepository:
                 "INSERT INTO sessions(session_id, project_id, role_name, status, created_at) VALUES (?, ?, ?, ?, ?)",
                 (session.session_id, request.project_id, session.role_name, session.status.value, session.created_at.isoformat()),
             )
+        self._refresh_system_state(request.project_id)
         return session
 
     def complete_session(self, session_id: str, request: SessionCompleteRequest) -> HandoffRecord:
@@ -1689,6 +2520,7 @@ class OpenFlowRepository:
             self._session_knowledge_items(session.project_id, session, handoff)
             + [self._transcript_summary_item(session.project_id, session, transcript)],
         )
+        self._refresh_system_state(session.project_id)
         return handoff
 
     def advance_handoff(self, handoff_id: str) -> dict[str, object]:
@@ -1751,6 +2583,457 @@ class OpenFlowRepository:
             decisions=decisions,
         )
 
+    def get_system_graph(self, project_id: str) -> dict[str, object]:
+        return {
+            "project_id": project_id,
+            "goal_model": self._read_json_if_exists(self._goal_model_file(project_id), {}),
+            "cognitive_state": self._read_json_if_exists(self._cognitive_state_file(project_id), {}),
+            "workflow_graph_v2": self._read_json_if_exists(self._workflow_graph_v2_file(project_id), {}),
+            "plan_layers": self._read_json_if_exists(self._plan_layers_file(project_id), {}),
+            "task_graph_v2": self._read_json_if_exists(self._task_graph_v2_file(project_id), {}),
+            "role_profiles": self._read_json_if_exists(self._role_profiles_file(project_id), []),
+            "capability_registry": self._read_json_if_exists(self._capability_registry_file(project_id), []),
+            "node_capability_map": self._read_json_if_exists(self._node_capability_map_file(project_id), []),
+            "prewire_schemas": self._read_json_if_exists(self._prewire_file(project_id), {}),
+        }
+
+    def get_node_capsule(self, project_id: str, node_id: str) -> dict[str, object]:
+        capsule_path = self._capsules_dir(project_id) / f"{node_id}.json"
+        if not capsule_path.exists():
+            raise FileNotFoundError(f"Unknown execution capsule for node: {node_id}")
+        return {
+            "project_id": project_id,
+            "node_id": node_id,
+            "execution_capsule": self._read_json(capsule_path),
+        }
+
+    def get_memory_index(self, project_id: str) -> dict[str, object]:
+        return {
+            "project_id": project_id,
+            "memory_packs": self._read_json_if_exists(self._memory_index_file(project_id), []),
+        }
+
+    def get_role_profiles(self, project_id: str) -> dict[str, object]:
+        return {
+            "project_id": project_id,
+            "role_profiles": self._read_json_if_exists(self._role_profiles_file(project_id), []),
+        }
+
+    def get_capabilities(self, project_id: str) -> dict[str, object]:
+        return {
+            "project_id": project_id,
+            "capability_registry": self._read_json_if_exists(self._capability_registry_file(project_id), []),
+            "prewire_schemas": self._read_json_if_exists(self._prewire_file(project_id), {}),
+        }
+
+    def get_mappings(self, project_id: str) -> dict[str, object]:
+        return {
+            "project_id": project_id,
+            "node_capability_map": self._read_json_if_exists(self._node_capability_map_file(project_id), []),
+        }
+
+    def get_session_factory_preview(self, project_id: str, node_id: str) -> dict[str, object]:
+        capsule_path = self._capsules_dir(project_id) / f"{node_id}.json"
+        if not capsule_path.exists():
+            raise FileNotFoundError(f"Unknown session factory node: {node_id}")
+        capsule = dict(self._read_json(capsule_path))
+        return {
+            "project_id": project_id,
+            "node_id": node_id,
+            "session_factory_preview": {
+                "launch_readiness": capsule.get("launch_readiness", False),
+                "missing_dependencies": capsule.get("missing_dependencies", []),
+                "session_config_payload": capsule.get("session_config_payload", {}),
+                "memory_pack_refs": capsule.get("memory_pack_refs", []),
+                "audit_requirements": capsule.get("audit_requirements", []),
+                "source_resolution": capsule.get("source_resolution", "registry"),
+            },
+        }
+
+    def get_observability(self, project_id: str) -> dict[str, object]:
+        return {
+            "project_id": project_id,
+            "observability": self._read_json_if_exists(self._observability_file(project_id), {}),
+        }
+
+    def get_improvement_log(self, project_id: str) -> dict[str, object]:
+        return {
+            "project_id": project_id,
+            "improvements": self._read_json_if_exists(self._improvement_log_file(project_id), []),
+        }
+
+    def _append_transcript_entries(self, project_id: str, session_id: str, entries: list[dict[str, object]]) -> list[dict[str, object]]:
+        transcript_path = self._session_dir(project_id, session_id) / "transcript.jsonl"
+        transcript = list(self._read_json_if_exists(transcript_path, []))
+        transcript.extend(entries)
+        self._write_json(transcript_path, transcript)
+        return transcript
+
+    def _append_observability_event(self, project_id: str, event: ObservabilityEvent) -> dict[str, object]:
+        snapshot_payload = dict(self._read_json_if_exists(self._observability_file(project_id), {}))
+        if not snapshot_payload:
+            return {}
+        recent_events = list(snapshot_payload.get("recent_events", []))
+        recent_events.insert(0, event.model_dump(mode="json"))
+        snapshot_payload["recent_events"] = recent_events[:8]
+        snapshot_payload["current_status"] = snapshot_payload.get("current_status", "active")
+        self._write_json(self._observability_file(project_id), snapshot_payload)
+        return snapshot_payload
+
+    def _append_improvement_entry(self, project_id: str, improvement: ImprovementRecord) -> list[dict[str, object]]:
+        log = list(self._read_json_if_exists(self._improvement_log_file(project_id), []))
+        log.append(improvement.model_dump(mode="json"))
+        self._write_json(self._improvement_log_file(project_id), log[-20:])
+        return log[-20:]
+
+    def _append_memory_update(
+        self,
+        project_id: str,
+        session_id: str,
+        node_id: str,
+        summary: str,
+    ) -> list[dict[str, object]]:
+        memory_index = list(self._read_json_if_exists(self._memory_index_file(project_id), []))
+        operational_pack = next((item for item in memory_index if item.get("layer") == "operational"), None)
+        if operational_pack is None:
+            return memory_index
+        payload = dict(operational_pack.get("payload", {}))
+        latest_updates = list(payload.get("latest_updates", []))
+        latest_updates.append(
+            {
+                "session_id": session_id,
+                "node_id": node_id,
+                "summary": summary,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        payload["latest_updates"] = latest_updates[-10:]
+        operational_pack["payload"] = payload
+        if summary not in operational_pack.get("keywords", []):
+            operational_pack.setdefault("keywords", []).append(summary[:48])
+        self._write_json(self._memory_index_file(project_id), memory_index)
+        self._write_json(self._system_dir(project_id) / "memory" / f"{operational_pack['pack_id']}.json", operational_pack)
+        return memory_index
+
+    def _resolve_chat_session(self, project_id: str, request: ChatMessageRequest) -> SessionRecord:
+        if request.session_id:
+            session = self._find_session(request.session_id)
+            if session.project_id != project_id:
+                raise ValueError("invalid_session")
+            return session
+        summary = self.get_project_summary(project_id)
+        recommended_work_package = dict(summary.get("recommended_work_package", {}))
+        recommended_role = str(recommended_work_package.get("recommended_role", "Bootstrap Strategist"))
+        state = self.get_project_state(project_id)
+        active_sessions = [
+            session
+            for session in sorted(state.sessions, key=lambda item: item.created_at, reverse=True)
+            if session.role_name == recommended_role and session.status == SessionStatus.active
+        ]
+        if active_sessions:
+            return active_sessions[0]
+        objective = str(recommended_work_package.get("suggested_session_objective", summary.get("recommendation", {}).get("recommended_reason", "Continue the next recommended work step.")))
+        input_files = list(recommended_work_package.get("recommended_files", []))
+        return self.create_session(
+            SessionCreateRequest(
+                project_id=project_id,
+                role_name=recommended_role,
+                objective=objective,
+                input_files=input_files,
+            )
+        )
+
+    def _resolve_chat_node(self, project_id: str, session: SessionRecord) -> tuple[dict[str, object], dict[str, object]]:
+        task_graph = dict(self._read_json_if_exists(self._task_graph_v2_file(project_id), {}))
+        nodes = list(task_graph.get("nodes", []))
+        candidates = [node for node in nodes if node.get("owner_role") == session.role_name]
+        if not candidates:
+            candidates = nodes
+        if not candidates:
+            raise ValueError("no_active_node")
+        node = next((item for item in candidates if item.get("status") != "completed"), candidates[0])
+        capsule = dict(self._read_json_if_exists(self._capsules_dir(project_id) / f"{node['node_id']}.json", {}))
+        return node, capsule
+
+    def _simulated_execution_result(
+        self,
+        project_id: str,
+        session: SessionRecord,
+        node: dict[str, object],
+        capsule: dict[str, object],
+        request: ChatMessageRequest,
+    ) -> tuple[str, ExecutionResult]:
+        action = request.action.strip().lower()
+        base_summary = f"{session.role_name} processed the current {node.get('title', 'work step')} from files."
+        assistant_message = (
+            f"{session.role_name} is continuing from the current files. "
+            f"Focus: {session.objective}. "
+            f"Latest user instruction: {request.message.strip()}"
+        )
+        rewrite_intents: list[RewriteIntent] = []
+        if action == "replan":
+            base_summary = f"{session.role_name} flagged the current direction for replanning."
+            assistant_message = "The current direction should be rewritten before downstream execution continues."
+            rewrite_intents.append(
+                RewriteIntent(
+                    target_type="task_graph_v2",
+                    target_id=str(node.get("node_id", "unknown-node")),
+                    action="replan_node",
+                    reason=request.message.strip() or "User requested replanning.",
+                    risk_level="medium",
+                    auto_applied=False,
+                )
+            )
+        elif action == "review":
+            base_summary = f"{session.role_name} reviewed the current work state and highlighted the next decision point."
+            assistant_message = "Review notes were recorded. The next step should stay aligned with the current files and explicit risks."
+        elif action == "complete":
+            base_summary = f"{session.role_name} prepared a completion-ready summary for the current step."
+            assistant_message = "A completion-ready summary was prepared. The next role can continue from the updated files."
+
+        event = ObservabilityEvent(
+            event_id=f"obs-chat-{uuid4().hex[:8]}",
+            event_type="chat_execution",
+            title=f"{session.role_name} handled a chat execution step",
+            detail=base_summary,
+            refs=[f"projects/{project_id}/sessions/{session.session_id}/transcript.jsonl"],
+        )
+        recommended_handoff = {
+            "session_summary": base_summary,
+            "next_role_recommendation": "Review Operator" if action == "complete" else session.role_name,
+            "next_role_reason": "Validate the latest work from durable files." if action == "complete" else "Continue from the latest structured execution note.",
+            "required_input_files": list(capsule.get("required_files", [])),
+        }
+        memory_updates = [
+            {
+                "layer": "operational",
+                "summary": base_summary,
+                "refs": [f"projects/{project_id}/sessions/{session.session_id}/transcript.jsonl"],
+            }
+        ]
+        return assistant_message, ExecutionResult(
+            status="completed",
+            summary=base_summary,
+            structured_outputs={
+                "role_name": session.role_name,
+                "node_id": node.get("node_id"),
+                "action": action,
+                "required_files": capsule.get("required_files", []),
+            },
+            recommended_handoff=recommended_handoff,
+            memory_updates=memory_updates,
+            observability_event=event.model_dump(mode="json"),
+            rewrite_intents=rewrite_intents,
+        )
+
+    def _provider_execution_result(
+        self,
+        project_id: str,
+        session: SessionRecord,
+        node: dict[str, object],
+        capsule: dict[str, object],
+        request: ChatMessageRequest,
+    ) -> tuple[str, ExecutionResult]:
+        adapter = os.environ.get("OPENFLOW_PROVIDER_ADAPTER", "").strip().lower()
+        if not adapter:
+            return (
+                "A real provider-backed execution path is not configured yet. Switch to simulated mode or configure a provider.",
+                ExecutionResult(
+                    status="not_configured",
+                    summary="Provider execution is not configured.",
+                    structured_outputs={"node_id": str(node.get("node_id")), "role_name": session.role_name},
+                ),
+            )
+        if adapter == "mock":
+            assistant_message, result = self._simulated_execution_result(project_id, session, node, capsule, request)
+            result.summary = f"Provider adapter mock executed successfully. {result.summary}"
+            result.structured_outputs["provider_adapter"] = "mock"
+            return assistant_message, result
+        return (
+            f"The configured provider adapter '{adapter}' is not supported by this runtime yet.",
+            ExecutionResult(
+                status="not_configured",
+                summary=f"Provider adapter '{adapter}' is not supported.",
+                structured_outputs={"node_id": str(node.get('node_id')), "role_name": session.role_name, "provider_adapter": adapter},
+            ),
+        )
+
+    def _build_auto_complete_request(
+        self,
+        project_id: str,
+        session: SessionRecord,
+        node: dict[str, object],
+        capsule: dict[str, object],
+        execution_result: ExecutionResult,
+    ) -> SessionCompleteRequest:
+        handoff_input_files = [f"projects/{project_id}/sessions/{session.session_id}/handoff.json"]
+        for path in capsule.get("required_files", []):
+            if path not in handoff_input_files:
+                handoff_input_files.append(path)
+        next_role = "Review Operator"
+        next_reason = "A review pass should validate the latest execution result from durable files."
+        if session.role_name == "Review Operator":
+            next_role = "Bootstrap Strategist"
+            next_reason = "Review is complete. Re-evaluate the next step from the updated files."
+        return SessionCompleteRequest(
+            session_summary=execution_result.summary,
+            decision_updates=[],
+            task_status_changes=[f"{node.get('task_id', 'unknown-task')}=completed"],
+            next_role_recommendation=next_role,
+            next_role_reason=next_reason,
+            required_input_files=handoff_input_files,
+            success_criteria=list(capsule.get("verification_policy", [])) or ["Review the latest execution result."],
+            risks=["The resulting handoff may still require review or replanning."],
+            review_outcome="pass",
+            acceptance_status="accepted",
+            followup_actions=["Advance to the recommended next role after review."],
+        )
+
+    def post_chat_message(self, project_id: str, request: ChatMessageRequest) -> dict[str, object]:
+        if request.project_id != project_id:
+            raise ValueError("validation_error")
+        if not request.message.strip():
+            raise ValueError("validation_error")
+        if request.action not in {"continue", "complete", "review", "replan"}:
+            raise ValueError("validation_error")
+
+        session = self._resolve_chat_session(project_id, request)
+        node, capsule = self._resolve_chat_node(project_id, session)
+        node_id = str(node.get("node_id", "unknown-node"))
+        missing_dependencies = list(capsule.get("missing_dependencies", []))
+        is_blocked = bool(missing_dependencies) or bool(node.get("needs_human_confirm")) or capsule.get("launch_readiness") is False
+
+        user_entry = {
+            "role": "user",
+            "content": request.message.strip(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "message_type": "chat_input",
+            "node_id": node_id,
+            "mode": request.mode,
+            "action": request.action,
+        }
+
+        if request.mode == "provider":
+            assistant_message, execution_result = self._provider_execution_result(project_id, session, node, capsule, request)
+        elif is_blocked:
+            assistant_message = "This step cannot run yet because launch readiness is blocked. Resolve the missing dependencies or confirmation gate first."
+            execution_result = ExecutionResult(
+                status="blocked",
+                summary="Execution is blocked before the role can continue.",
+                structured_outputs={
+                    "node_id": node_id,
+                    "role_name": session.role_name,
+                    "missing_dependencies": missing_dependencies or ["Human confirmation is still required."],
+                },
+            )
+        else:
+            assistant_message, execution_result = self._simulated_execution_result(project_id, session, node, capsule, request)
+
+        assistant_entry = {
+            "role": "assistant",
+            "content": assistant_message,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "message_type": "chat_output",
+            "node_id": node_id,
+            "mode": request.mode,
+            "action": request.action,
+            "execution_status": execution_result.status,
+        }
+        self._append_transcript_entries(project_id, session.session_id, [user_entry, assistant_entry])
+        self._refresh_system_state(project_id)
+
+        if execution_result.observability_event:
+            self._append_observability_event(project_id, ObservabilityEvent.model_validate(execution_result.observability_event))
+        if execution_result.memory_updates:
+            self._append_memory_update(project_id, session.session_id, node_id, execution_result.memory_updates[-1]["summary"])
+        if execution_result.rewrite_intents:
+            self._append_improvement_entry(
+                project_id,
+                ImprovementRecord(
+                    improvement_id=f"improvement-{uuid4().hex[:8]}",
+                    summary=execution_result.summary,
+                    plan_updates=["Keep the next step aligned with the latest chat execution result."],
+                    mapping_updates=["Refresh execution mapping after the latest interactive step."],
+                    next_focus=[assistant_message],
+                    rewrite_intents=execution_result.rewrite_intents,
+                ),
+            )
+        if request.action == "complete" and execution_result.status == "completed":
+            completion_request = self._build_auto_complete_request(project_id, session, node, capsule, execution_result)
+            self.complete_session(session.session_id, completion_request)
+
+        updated_chat_workspace = self.get_chat_workspace(project_id)
+        return ChatMessageResponse(
+            project_id=project_id,
+            session_id=session.session_id,
+            node_id=node_id,
+            mode=request.mode,
+            assistant_message=assistant_message,
+            execution_result=execution_result,
+            updated_chat_workspace=updated_chat_workspace,
+        ).model_dump(mode="json")
+
+    def get_chat_workspace(self, project_id: str) -> dict[str, object]:
+        summary = self.get_project_summary(project_id)
+        latest_session = summary.get("latest_session")
+        session_payload = None
+        complete_defaults = None
+        if latest_session:
+            session_id = str(latest_session["session_id"])
+            session_payload = self.get_session_detail(project_id, session_id)
+            complete_defaults = {
+                "session_summary": "Summarize the work step outcome and what changed.",
+                "next_role_recommendation": "Review Operator",
+                "next_role_reason": "A review pass is needed before advancing.",
+                "required_input_files": [f"projects/{project_id}/sessions/{session_id}/handoff.json"],
+                "success_criteria": ["Review the evidence", "Decide whether to advance"],
+                "risks": ["The review may trigger replanning."],
+                "transcript_note": "Record the most important execution note from this session.",
+                "task_status_changes": ["implementation-slice=completed"],
+                "review_outcome": "pass",
+                "acceptance_status": "accepted",
+                "followup_actions": ["Start the recommended next role."],
+            }
+        return {
+            "project_id": project_id,
+            "project": summary.get("project", {}),
+            "project_stage": summary.get("project_stage"),
+            "goal_model": summary.get("goal_model", {}),
+            "recommendation": summary.get("recommendation", {}),
+            "recommended_work_package": summary.get("recommended_work_package", {}),
+            "next_step": summary.get("next_step", {}),
+            "governance": summary.get("governance", {}),
+            "materials": summary.get("materials", {}),
+            "latest_session": latest_session,
+            "latest_handoff": summary.get("latest_handoff"),
+            "timeline": summary.get("timeline", []),
+            "current_execution_capsule_preview": summary.get("current_execution_capsule_preview", {}),
+            "current_session_factory_preview": summary.get("current_session_factory_preview", {}),
+            "memory_pack_preview": session_payload.get("memory_pack_preview", []) if session_payload else [],
+            "observability_snapshot": session_payload.get("observability_snapshot", {}) if session_payload else self.get_observability(project_id).get("observability", {}),
+            "improvement_snapshot": session_payload.get("improvement_snapshot", []) if session_payload else self.get_improvement_log(project_id).get("improvements", []),
+            "session_detail": session_payload,
+            "complete_defaults": complete_defaults,
+        }
+
+    def get_config_workspace(self, project_id: str) -> dict[str, object]:
+        summary = self.get_project_summary(project_id)
+        graph = self.get_system_graph(project_id)
+        return {
+            "project_id": project_id,
+            "project": summary.get("project", {}),
+            "project_stage": summary.get("project_stage"),
+            "governance": summary.get("governance", {}),
+            "goal_model": graph.get("goal_model", {}),
+            "cognitive_state": graph.get("cognitive_state", {}),
+            "plan_layers": graph.get("plan_layers", {}),
+            "task_graph_v2": graph.get("task_graph_v2", {}),
+            "role_profiles": graph.get("role_profiles", []),
+            "capability_registry": graph.get("capability_registry", []),
+            "node_capability_map": graph.get("node_capability_map", []),
+            "prewire_schemas": graph.get("prewire_schemas", {}),
+        }
+
     def get_project_summary(self, project_id: str) -> dict[str, object]:
         project_meta = self._read_json(self._project_dir(project_id) / "project.json")
         state = self.get_project_state(project_id)
@@ -1785,17 +3068,36 @@ class OpenFlowRepository:
         project_stage = self._project_stage(state, latest_handoff, governance)
         next_role = recommendation["recommended_role"]
         why_next_role = recommendation["recommended_reason"]
+        goal_model = self._read_json_if_exists(self._goal_model_file(project_id), {})
+        cognitive_state = self._read_json_if_exists(self._cognitive_state_file(project_id), {})
+        plan_layers = self._read_json_if_exists(self._plan_layers_file(project_id), {})
+        task_graph_v2 = self._read_json_if_exists(self._task_graph_v2_file(project_id), {})
+        current_execution_capsule_preview = {}
+        current_session_factory_preview = {}
+        if task_graph_v2:
+            nodes = list(task_graph_v2.get("nodes", []))
+            current_node = next((node for node in nodes if node.get("owner_role") == recommendation["recommended_role"]), None)
+            if current_node:
+                capsule_path = self._capsules_dir(project_id) / f"{current_node['node_id']}.json"
+                current_execution_capsule_preview = self._read_json_if_exists(capsule_path, {})
+                current_session_factory_preview = self.get_session_factory_preview(project_id, current_node["node_id"]).get("session_factory_preview", {})
         return {
             "project_id": project_id,
             "project": project_meta,
             "state": state.model_dump(mode="json"),
             "latest_session": latest_session.model_dump(mode="json") if latest_session else None,
             "latest_handoff": latest_handoff.model_dump(mode="json") if latest_handoff else None,
+            "goal_model": goal_model,
+            "cognitive_state": cognitive_state,
+            "plan_layers": plan_layers,
+            "task_graph_v2": task_graph_v2,
             "timeline": timeline["events"],
             "governance": governance,
             "project_stage": project_stage,
             "recommendation": recommendation,
             "recommended_work_package": recommended_work_package,
+            "current_execution_capsule_preview": current_execution_capsule_preview,
+            "current_session_factory_preview": current_session_factory_preview,
             "next_step": next_step,
             "materials": materials,
             "next_role": next_role,
@@ -2036,6 +3338,17 @@ class OpenFlowRepository:
             recommendation,
             next_step,
         )
+        task_graph_v2 = self._read_json_if_exists(self._task_graph_v2_file(project_id), {})
+        execution_capsule = {}
+        session_factory_preview = {}
+        if task_graph_v2:
+            current_node = next((node for node in task_graph_v2.get("nodes", []) if node.get("owner_role") == session.role_name), None)
+            if current_node:
+                execution_capsule = self._read_json_if_exists(self._capsules_dir(project_id) / f"{current_node['node_id']}.json", {})
+                session_factory_preview = self.get_session_factory_preview(project_id, current_node["node_id"]).get("session_factory_preview", {})
+        memory_pack_preview = self._read_json_if_exists(self._memory_index_file(project_id), [])
+        observability_snapshot = self._read_json_if_exists(self._observability_file(project_id), {})
+        improvement_log = self._read_json_if_exists(self._improvement_log_file(project_id), [])
         return {
             "project_id": project_id,
             "session": session.model_dump(mode="json"),
@@ -2049,6 +3362,11 @@ class OpenFlowRepository:
             "review_state": next_step["state"],
             "review_feedback_message": self._review_feedback_message(handoff.acceptance_status if handoff else None),
             "next_step": next_step,
+            "execution_capsule": execution_capsule,
+            "session_factory_preview": session_factory_preview,
+            "memory_pack_preview": memory_pack_preview,
+            "observability_snapshot": observability_snapshot,
+            "improvement_snapshot": improvement_log[-3:],
         }
 
     def _find_session(self, session_id: str) -> SessionRecord:

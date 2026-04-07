@@ -1,5 +1,10 @@
 const appRoot = document.getElementById("app");
 
+const appState = {
+  flash: null,
+  landingPayload: null,
+};
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -15,145 +20,14 @@ function splitLines(value) {
     .filter(Boolean);
 }
 
-function getModeUi(mode) {
-  const map = {
-    research: {
-      label: "Research Workspace",
-      kicker: "Collect, compare, synthesize",
-      narrative: "Use this when the real problem is scattered materials, weak synthesis, or unclear evidence for the next decision.",
-      highlights: ["broad material intake", "source-to-summary traceability", "evidence-backed next step"],
-    },
-    experience: {
-      label: "Experience Workspace",
-      kicker: "Clarify the journey, reduce friction",
-      narrative: "Use this when the work feels too complex, too technical, or not attractive enough for ordinary users.",
-      highlights: ["simpler first-run flow", "clearer page sequencing", "higher product attraction"],
-    },
-    multimodal: {
-      label: "Multimodal Workspace",
-      kicker: "Connect image, text, planning, execution",
-      narrative: "Use this when the workflow needs to move from multimodal input into a plan, then into runnable execution with preserved continuity.",
-      highlights: ["image-plus-text intake", "plan-to-execution loop", "file-driven continuity"],
-    },
-    delivery: {
-      label: "Delivery Workspace",
-      kicker: "Turn intent into executable work",
-      narrative: "Use this when the work already has enough direction and the main need is clear decomposition, execution, and review.",
-      highlights: ["visible work slices", "role-based execution", "handoff and review loop"],
-    },
-  };
-  return map[mode] || map.delivery;
-}
-
-function getRecommendedWorkPackage(container) {
-  const workPackage = container?.recommended_work_package;
-  if (workPackage) {
-    return workPackage;
+function arrayify(value) {
+  if (Array.isArray(value)) {
+    return value;
   }
-  const recommendation = container?.recommendation || {};
-  const nextStep = container?.next_step || {};
-  const suggestedFiles = nextStep.state === "research_gap"
-    ? ["Open the materials center and organize the next source set."]
-    : ["projects/current/workflow_graph.json"];
-  const blockers = nextStep.state && !["ready", "none"].includes(nextStep.state) ? [nextStep.message].filter(Boolean) : [];
-  return {
-    recommended_role: recommendation.recommended_role || "Implementation Lead",
-    recommended_action: nextStep.primary_label || "Continue the recommended next step",
-    recommended_reason: recommendation.recommended_reason || nextStep.message || "Continue with the next work package from the saved project state.",
-    recommended_files: suggestedFiles,
-    expected_output: nextStep.message || "A saved result and a clear next handoff.",
-    success_criteria: [],
-    risks: [],
-    blocking_items: blockers,
-    confidence: "medium",
-    recommendation_source: "fallback",
-    secondary_note: recommendation.secondary_note || "",
-    project_mode: container?.state?.project_mode || "delivery",
-    next_step_state: nextStep.state || "none",
-    ready_for_auto_advance: false,
-    auto_advance_blockers: blockers,
-    suggested_session_objective: nextStep.message || "Start the next recommended work package.",
-    human_action_required: true,
-    materials_snapshot: {
-      organized_material_count: container?.materials?.organized_material_count || 0,
-      raw_source_count: 0,
-      synthesized_count: 0,
-      linked_count: 0,
-    },
-  };
-}
-
-function getConfidenceLabel(confidence) {
-  const map = {
-    high: "The current records strongly support this path.",
-    medium: "The current records support this path, but it may still change after more material or review.",
-    low: "This is a tentative path based on limited material.",
-  };
-  return map[confidence] || map.medium;
-}
-
-function getRecommendationSourceLabel(source) {
-  const map = {
-    latest_handoff: "This path comes mainly from the latest saved handoff and the role it pointed to next.",
-    confirm_gate: "This path is being shaped by a review gate that must be cleared before the work can continue.",
-    blocked_task: "This path is being shaped by blocked work that must be resolved before the project can move normally again.",
-    raw_material_gap: "This path is being shaped by missing organized materials, so the system is steering toward preparation work first.",
-    project_mode_research: "This path is being shaped by a research-heavy project mode and the current need for better material organization.",
-    decision_conflict: "This path is being shaped by a decision conflict, so the recommendation is protecting the project from moving on weak assumptions.",
-    review_replan: "This path is being shaped by a replan decision, so the current recommendation favors correction before more execution.",
-    review_changes_requested: "This path is being shaped by requested changes, so the recommendation favors another pass before continuing.",
-    fallback: "This path is based on the current project summary and the most recent visible next-step state.",
-  };
-  return map[source] || map.fallback;
-}
-
-function getNextStepStateUi(state, readyForAutoAdvance) {
-  const map = {
-    ready: {
-      chipClass: readyForAutoAdvance ? "ready" : "blocked",
-      chipLabel: readyForAutoAdvance ? "Ready to continue" : "Recommended, but not ready to auto-continue",
-      message: readyForAutoAdvance ? "The saved records already meet the conditions for the next work package." : "The system has a clear next work package, but a person still needs to continue it.",
-    },
-    review_needed: {
-      chipClass: "review",
-      chipLabel: "Waiting for review",
-      message: "The next work package is recommended, but review still has to happen before the system can treat it as ready.",
-    },
-    blocked: {
-      chipClass: "blocked",
-      chipLabel: "Blocked",
-      message: "The next work package is visible, but the project is blocked right now.",
-    },
-    changes_requested: {
-      chipClass: "review",
-      chipLabel: "Changes requested",
-      message: "The next work package is known, but another pass is required before the project should continue.",
-    },
-    replan_required: {
-      chipClass: "review",
-      chipLabel: "Replan required",
-      message: "The current path should be corrected before the project continues into the next work package.",
-    },
-    research_gap: {
-      chipClass: "blocked",
-      chipLabel: "More material needed",
-      message: "The system is pointing to material organization because the next execution step would be weak without it.",
-    },
-    none: {
-      chipClass: "blocked",
-      chipLabel: "Next step not ready yet",
-      message: "The project still needs a clearer saved result before a strong next work package can be formed.",
-    },
-  };
-  return map[state] || map.none;
-}
-
-function statline(items) {
-  return `<div class="statline">${items.map((item) => `<div class="stat">${escapeHtml(item)}</div>`).join("")}</div>`;
-}
-
-function chips(items) {
-  return `<div class="chips">${items.map((item) => `<span class="tag">${escapeHtml(item)}</span>`).join("")}</div>`;
+  if (!value) {
+    return [];
+  }
+  return [value];
 }
 
 async function apiFetch(url, options = {}) {
@@ -162,9 +36,20 @@ async function apiFetch(url, options = {}) {
     ...options,
   });
   if (!response.ok) {
-    throw new Error(await response.text() || `Request failed: ${response.status}`);
+    throw new Error((await response.text()) || `Request failed: ${response.status}`);
   }
-  return response.json();
+  const contentType = response.headers.get("content-type") || "";
+  return contentType.includes("application/json") ? response.json() : response.text();
+}
+
+function setFlash(kind, message) {
+  appState.flash = { kind, message };
+}
+
+function consumeFlash() {
+  const flash = appState.flash;
+  appState.flash = null;
+  return flash;
 }
 
 function navigate(path) {
@@ -183,85 +68,677 @@ document.addEventListener("click", (event) => {
   navigate(link.getAttribute("href"));
 });
 
-function shell(content, projectId = "") {
-  const pathname = window.location.pathname;
-  const sessionActive = /^\/app\/projects\/[^/]+\/sessions\/[^/]+$/.test(pathname);
-  const sidebar = projectId
+function shell(content, projectId = "", active = "") {
+  const nav = projectId
     ? `
-      <aside class="sidebar">
-        <div class="sidebar-card">
-          <div class="eyebrow">Project</div>
-          <h3>${escapeHtml(projectId)}</h3>
-          <div class="route-list">
-            ${[
-              ["Welcome", `/app/projects/${projectId}/welcome`],
-              ["Workspace", `/app/projects/${projectId}`],
-              ["Knowledge", `/app/projects/${projectId}/knowledge`],
-              ["Tasks", `/app/projects/${projectId}/tasks`],
-              ["Workflow", `/app/projects/${projectId}/workflow`],
-              ["Decisions", `/app/projects/${projectId}/decisions`],
-            ]
-              .map(([label, href]) => `<a class="${pathname === href ? "active" : ""}" href="${href}" data-nav>${label}</a>`)
-              .join("")}
-            <a class="${sessionActive ? "active" : ""}" href="#" aria-disabled="true">Session</a>
-          </div>
-        </div>
-        <div class="sidebar-card">
-          <div class="eyebrow">Mode</div>
-          <p class="muted">This frontend runs in parallel with the existing server-rendered pages while keeping the same FastAPI business logic.</p>
-        </div>
-      </aside>
+      <div class="app-nav">
+        <a class="nav-tab ${active === "workspace" ? "active" : ""}" href="/app/projects/${projectId}" data-nav>Chat Workspace</a>
+        <a class="nav-tab ${active === "config" ? "active" : ""}" href="/app/projects/${projectId}/config" data-nav>System Config</a>
+      </div>
     `
     : "";
   return `
     <div class="app-shell">
-      <div class="topbar">
+      <header class="topbar">
         <div class="brand">
-          <div class="brand-title"><a href="/app" data-nav>OpenFlow App</a></div>
-          <div class="brand-subtitle">Independent workspace shell with file-based continuity</div>
+          <div class="brand-title"><a href="/app" data-nav>OpenFlow</a></div>
+          <div class="brand-subtitle">Fresh sessions continue through files, handoffs, memory, and saved decisions.</div>
         </div>
-        <div class="nav">
+        <div class="topbar-links">
           <a href="/" target="_blank" rel="noreferrer">Legacy Pages</a>
           <a href="/blueprint" target="_blank" rel="noreferrer">Blueprint API</a>
         </div>
-      </div>
-      ${projectId ? `<div class="shell">${sidebar}<div class="page">${content}</div></div>` : `<div class="page">${content}</div>`}
+      </header>
+      ${nav}
+      <main class="page">${content}</main>
     </div>
   `;
 }
 
-async function renderLanding() {
-  const payload = await apiFetch("/api/app/landing");
-  const presets = payload.mode_presets || [];
-  const defaultMode = payload.defaults.preferred_project_mode || (presets[0] && presets[0].id) || "delivery";
+function renderFlash() {
+  const flash = consumeFlash();
+  if (!flash) {
+    return "";
+  }
   return `
-    <section class="hero">
-      <div class="grid grid-hero">
-        <div class="hero-copy">
-          <div class="eyebrow">AI Collaboration Workspace</div>
-          <h1>Choose how this work should run before the system starts splitting roles and sessions.</h1>
-          <p class="lede">OpenFlow is not a single long chat. Each role starts fresh. Continuity survives through files, handoffs, knowledge, decisions, and timeline records that every later session can read back.</p>
-          ${statline(payload.proof_points)}
-          <div class="hero-note">
-            <strong>What changes here</strong>
-            <p class="muted">Pick a work mode first so the workspace starts with a better first role, better defaults, and less unnecessary complexity.</p>
-          </div>
+    <section class="notice-banner ${escapeHtml(flash.kind || "info")}">
+      <strong>${escapeHtml(flash.message)}</strong>
+    </section>
+  `;
+}
+
+function oldRouteMessage(pathname, projectId) {
+  const routeMap = [
+    ["/welcome", "The welcome guide has been absorbed into Chat Workspace."],
+    ["/sessions/", "Session detail now appears inside Chat Workspace."],
+    ["/knowledge", "Materials and memory now appear inside Chat Workspace."],
+    ["/tasks", "Task status and blockers now appear inside Chat Workspace."],
+    ["/workflow", "Workflow definition now appears inside System Config."],
+    ["/decisions", "Decision and review configuration now appears inside System Config."],
+  ];
+  const matched = routeMap.find(([segment]) => pathname.includes(segment));
+  if (!matched) {
+    return "";
+  }
+  const target = matched[0] === "/workflow" || matched[0] === "/decisions"
+    ? `/app/projects/${projectId}/config`
+    : `/app/projects/${projectId}`;
+  return `
+    <section class="notice-banner">
+      <strong>Page structure has been simplified.</strong>
+      <p>${escapeHtml(matched[1])}</p>
+      <a class="button secondary" href="${target}" data-nav>Open the primary surface</a>
+    </section>
+  `;
+}
+
+function statusUi(state) {
+  const map = {
+    ready: { label: "Ready", className: "ready", explanation: "The next step is clear and can continue." },
+    blocked: { label: "Blocked", className: "blocked", explanation: "A blocker is preventing the next step from continuing." },
+    review_needed: { label: "Review Needed", className: "review", explanation: "The next step is known, but review still has to happen first." },
+    changes_requested: { label: "Changes Requested", className: "review", explanation: "Another pass is required before the project should continue." },
+    replan_required: { label: "Replan", className: "review", explanation: "The current route needs to be adjusted before the project moves on." },
+    research_gap: { label: "More Material Needed", className: "blocked", explanation: "The current path is limited by missing organized material." },
+    none: { label: "Not Ready Yet", className: "blocked", explanation: "The project does not yet have a stable saved next step." },
+  };
+  return map[state] || map.none;
+}
+
+function recommendationSourceLabel(source) {
+  const map = {
+    latest_handoff: "The latest saved handoff is driving this recommendation.",
+    confirm_gate: "A review gate is shaping the recommended path.",
+    review_replan: "A replan decision is shaping the recommended path.",
+    review_changes_requested: "Requested changes are shaping the recommended path.",
+    blocked_task: "Blocked work is influencing the recommended path.",
+    decision_conflict: "Conflicting decision-linked material is influencing the recommended path.",
+    raw_material_gap: "A material gap is influencing the recommended path.",
+    project_mode_research: "The current project mode is steering the next step toward material work.",
+    fallback: "The current project summary and next-step state are driving this recommendation.",
+  };
+  return map[source] || map.fallback;
+}
+
+function confidenceLabel(value) {
+  const map = {
+    high: "Current records strongly support this path.",
+    medium: "Current records support this path, but more review or material could still change it.",
+    low: "This path is provisional and based on limited evidence.",
+  };
+  return map[value] || map.medium;
+}
+
+function getWorkPackage(container) {
+  if (container?.recommended_work_package) {
+    return container.recommended_work_package;
+  }
+  const recommendation = container?.recommendation || {};
+  const nextStep = container?.next_step || {};
+  const blockers = nextStep.state && !["ready", "none"].includes(nextStep.state) ? [nextStep.message].filter(Boolean) : [];
+  return {
+    recommended_role: recommendation.recommended_role || "Implementation Lead",
+    recommended_action: nextStep.primary_label || "Continue the recommended next step",
+    recommended_reason: recommendation.recommended_reason || nextStep.message || "Continue with the next work package from the saved project state.",
+    recommended_files: [`projects/${container?.project_id || "current"}/workflow_graph.json`],
+    expected_output: nextStep.message || "Produce the next saved project result.",
+    success_criteria: [],
+    risks: [],
+    blocking_items: blockers,
+    confidence: "medium",
+    recommendation_source: "fallback",
+    secondary_note: recommendation.secondary_note || "",
+    project_mode: container?.project_mode || container?.state?.project_mode || "delivery",
+    next_step_state: nextStep.state || "none",
+    ready_for_auto_advance: false,
+    auto_advance_blockers: blockers,
+    suggested_session_objective: nextStep.message || "Start the next recommended work package.",
+    human_action_required: true,
+    materials_snapshot: {
+      organized_material_count: container?.materials?.organized_material_count || 0,
+      raw_source_count: 0,
+      synthesized_count: 0,
+      linked_count: 0,
+    },
+  };
+}
+
+function tag(text, cls = "") {
+  return `<span class="tag ${cls}">${escapeHtml(text)}</span>`;
+}
+
+function sectionCard(title, body, eyebrow = "", extra = "") {
+  return `
+    <section class="panel">
+      ${eyebrow ? `<div class="eyebrow">${escapeHtml(eyebrow)}</div>` : ""}
+      <div class="section-head">
+        <h2>${escapeHtml(title)}</h2>
+        ${extra}
+      </div>
+      ${body}
+    </section>
+  `;
+}
+
+function renderTurn(turn) {
+  const roleLabel = turn.role === "assistant" ? "System response" : "User input";
+  return `
+    <article class="turn-card ${turn.role === "assistant" ? "assistant" : "user"}">
+      <div class="turn-meta">
+        <strong>${escapeHtml(roleLabel)}</strong>
+        <span>${escapeHtml(turn.message_type || "conversation")}</span>
+        <span>${escapeHtml(turn.execution_status || "saved")}</span>
+      </div>
+      <p>${escapeHtml(turn.content || "")}</p>
+    </article>
+  `;
+}
+
+function renderConversation(sessionDetail) {
+  const transcript = sessionDetail?.transcript || [];
+  if (!transcript.length) {
+    return `<div class="empty-state">No conversation has been recorded for the current session yet.</div>`;
+  }
+  return `<div class="conversation-stream">${transcript.slice(-10).map(renderTurn).join("")}</div>`;
+}
+
+function renderKeyRounds(observability) {
+  const events = observability?.recent_events || [];
+  if (!events.length) {
+    return `<div class="empty-state">No recent execution events have been recorded yet.</div>`;
+  }
+  return `
+    <div class="timeline-list">
+      ${events.slice(0, 5).map((event) => `
+        <div class="timeline-item">
+          <strong>${escapeHtml(event.title)}</strong>
+          <p>${escapeHtml(event.detail)}</p>
         </div>
-        <div class="panel story-panel">
-          <div class="eyebrow">Why It Feels Different</div>
-          <div class="story-list">
-            <div class="story-item"><strong>Fresh sessions</strong><p class="microcopy">Roles never inherit hidden chat state.</p></div>
-            <div class="story-item"><strong>Visible memory</strong><p class="microcopy">Files, decisions, and handoffs stay inspectable.</p></div>
-            <div class="story-item"><strong>Clear next step</strong><p class="microcopy">Recommendations stay tied to project records.</p></div>
-            <div class="story-item"><strong>Recoverable workflow</strong><p class="microcopy">Review, changes, and replan paths remain explicit.</p></div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderObjectivePanel(chat) {
+  const goalModel = chat.goal_model || {};
+  return `
+    <div class="rail-card">
+      <div class="eyebrow">Current Objective</div>
+      <h3>${escapeHtml(goalModel.core_goal || chat.project?.goal || "Current project objective")}</h3>
+      <p>${escapeHtml(chat.project?.goal || goalModel.core_goal || "Define and complete the next visible project outcome.")}</p>
+      <div class="compact-tags">
+        ${tag(`Stage: ${chat.project_stage || "unknown"}`)}
+        ${tag(`Project: ${chat.project?.project_name || "Unnamed"}`)}
+      </div>
+    </div>
+  `;
+}
+
+function renderWorkPackagePanel(workPackage) {
+  const state = statusUi(workPackage.next_step_state);
+  const files = arrayify(workPackage.recommended_files);
+  const previewFiles = files.slice(0, 2);
+  const extraFiles = files.slice(2);
+  const blockers = arrayify(workPackage.blocking_items);
+  const autoBlockers = arrayify(workPackage.auto_advance_blockers);
+  const visibleBlockers = blockers.length ? blockers : autoBlockers;
+  return `
+    <div class="rail-card rail-feature">
+      <div class="rail-card-head">
+        <div>
+          <div class="eyebrow">Recommended Work Package</div>
+          <h3>${escapeHtml(workPackage.recommended_role || "Implementation Lead")}</h3>
+        </div>
+        <span class="status-chip ${state.className}">${escapeHtml(state.label)}</span>
+      </div>
+      <p class="feature-action">${escapeHtml(workPackage.recommended_action || "Continue with the next recommended step.")}</p>
+      <p class="muted">${escapeHtml(workPackage.recommended_reason || "This is the strongest current next step.")}</p>
+      <div class="mini-block">
+        <strong>Read first</strong>
+        ${previewFiles.length ? `<div class="file-list">${previewFiles.map((item) => `<code>${escapeHtml(item)}</code>`).join("")}</div>` : `<p class="muted">No file references are attached yet.</p>`}
+      </div>
+      <div class="mini-block">
+        <strong>Expected output</strong>
+        <p>${escapeHtml(workPackage.expected_output || "Produce the next saved result.")}</p>
+      </div>
+      ${visibleBlockers.length && !workPackage.ready_for_auto_advance ? `
+        <div class="callout danger">
+          <strong>Why it cannot continue automatically yet</strong>
+          <ul class="bullet-list">${visibleBlockers.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+        </div>
+      ` : workPackage.human_action_required && !workPackage.ready_for_auto_advance ? `
+        <div class="callout warning">
+          <strong>Human action is still required</strong>
+          <p>The system has a recommendation, but a person still needs to start or confirm the next step.</p>
+        </div>
+      ` : `
+        <div class="callout success">
+          <strong>Auto-continue conditions are already in place</strong>
+          <p>The saved project records satisfy the continuation checks, but this page does not trigger execution by itself.</p>
+        </div>
+      `}
+      <details class="details-block">
+        <summary>Open full work package details</summary>
+        <div class="details-stack">
+          ${extraFiles.length ? `<div><strong>Full file list</strong><div class="file-list">${extraFiles.map((item) => `<code>${escapeHtml(item)}</code>`).join("")}</div></div>` : ""}
+          ${arrayify(workPackage.success_criteria).length ? `<div><strong>Success criteria</strong><ul class="bullet-list">${arrayify(workPackage.success_criteria).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>` : ""}
+          ${arrayify(workPackage.risks).length ? `<div><strong>Risks</strong><ul class="bullet-list">${arrayify(workPackage.risks).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>` : ""}
+          <div><strong>Confidence</strong><p>${escapeHtml(confidenceLabel(workPackage.confidence))}</p></div>
+          ${workPackage.secondary_note ? `<div><strong>Additional note</strong><p>${escapeHtml(workPackage.secondary_note)}</p></div>` : ""}
+        </div>
+      </details>
+    </div>
+  `;
+}
+
+function renderReadinessPanel(workPackage) {
+  const state = statusUi(workPackage.next_step_state);
+  const blockers = arrayify(workPackage.auto_advance_blockers).length
+    ? arrayify(workPackage.auto_advance_blockers)
+    : arrayify(workPackage.blocking_items);
+  return `
+    <div class="rail-card">
+      <div class="eyebrow">Launch Readiness</div>
+      <h3>${workPackage.ready_for_auto_advance ? "Ready for continuation" : "Not ready for automatic continuation"}</h3>
+      <p>${escapeHtml(state.explanation)}</p>
+      ${!workPackage.ready_for_auto_advance
+        ? (blockers.length
+          ? `<ul class="bullet-list">${blockers.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+          : `<p class="muted">A person still needs to review, choose, or start the next step.</p>`)
+        : `<p class="muted">Recommendation and readiness are aligned, but execution still remains a deliberate user action.</p>`}
+    </div>
+  `;
+}
+
+function renderMemoryPanel(chat, workPackage) {
+  const snapshot = workPackage.materials_snapshot || {};
+  const memoryPreview = chat.memory_pack_preview || [];
+  return `
+    <div class="rail-card">
+      <div class="eyebrow">Memory Summary</div>
+      <div class="metric-grid">
+        <div class="metric-mini"><strong>${snapshot.organized_material_count || 0}</strong><span>Organized</span></div>
+        <div class="metric-mini"><strong>${snapshot.raw_source_count || 0}</strong><span>Raw Sources</span></div>
+        <div class="metric-mini"><strong>${snapshot.synthesized_count || 0}</strong><span>Synthesized</span></div>
+        <div class="metric-mini"><strong>${snapshot.linked_count || 0}</strong><span>Linked</span></div>
+      </div>
+      <p class="muted">Continuity comes from files, memory packs, handoffs, decisions, and timeline records rather than hidden chat context.</p>
+      ${memoryPreview.length ? `<details class="details-block"><summary>See preserved memory layers</summary><div class="details-stack">${memoryPreview.slice(0, 5).map((item) => `<div><strong>${escapeHtml(item.title || item.layer || "Layer")}</strong><p>${escapeHtml(item.summary || item.description || "")}</p></div>`).join("")}</div></details>` : ""}
+    </div>
+  `;
+}
+
+function renderObservabilityPanel(chat) {
+  const latestSession = chat.latest_session;
+  const latestHandoff = chat.latest_handoff;
+  const observability = chat.observability_snapshot || {};
+  return `
+    <div class="rail-card">
+      <div class="eyebrow">Progress / Observability</div>
+      <h3>${escapeHtml(observability.current_phase || chat.project_stage || "Current phase")}</h3>
+      <p>${escapeHtml(observability.current_role || latestSession?.role_name || "No active role yet")}</p>
+      <div class="compact-tags">
+        ${tag(`Progress ${observability.progress_percent || 0}%`)}
+        ${latestSession ? tag(`Session ${latestSession.status}`) : ""}
+        ${latestHandoff ? tag(`Handoff ${latestHandoff.acceptance_status || "saved"}`) : ""}
+      </div>
+      ${renderKeyRounds(observability)}
+    </div>
+  `;
+}
+
+function renderBlockersPanel(chat, workPackage) {
+  const blockers = [
+    ...arrayify(workPackage.blocking_items),
+    ...arrayify(workPackage.auto_advance_blockers),
+  ];
+  const unique = [...new Set(blockers.filter(Boolean))];
+  return `
+    <div class="rail-card">
+      <div class="eyebrow">Active Blockers</div>
+      <h3>${unique.length ? "What is preventing smoother continuation" : "No active blockers are recorded right now"}</h3>
+      ${unique.length ? `<ul class="bullet-list">${unique.slice(0, 5).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : `<p class="muted">The system still distinguishes recommendation from execution, but no explicit blocker has been recorded.</p>`}
+      <p class="microcopy">${escapeHtml(recommendationSourceLabel(workPackage.recommendation_source))}</p>
+    </div>
+  `;
+}
+
+function renderImprovementPanel(chat) {
+  const improvements = chat.improvement_snapshot || [];
+  if (!improvements.length) {
+    return `
+      <div class="rail-card">
+        <div class="eyebrow">Latest Improvement</div>
+        <h3>No improvement records yet</h3>
+        <p class="muted">When the system rewrites plans, mappings, or next-step logic, the latest improvement will appear here.</p>
+      </div>
+    `;
+  }
+  const latest = improvements[improvements.length - 1];
+  return `
+    <div class="rail-card">
+      <div class="eyebrow">Latest Improvement</div>
+      <h3>${escapeHtml(latest.summary || "Latest system improvement")}</h3>
+      ${arrayify(latest.next_focus).length ? `<p>${escapeHtml(arrayify(latest.next_focus)[0])}</p>` : ""}
+      ${arrayify(latest.plan_updates).length ? `<ul class="bullet-list">${arrayify(latest.plan_updates).slice(0, 3).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}
+    </div>
+  `;
+}
+
+function renderActionPanel(projectId, chat, workPackage) {
+  const nextStep = chat.next_step || {};
+  const latestHandoff = chat.latest_handoff;
+  const canContinue = latestHandoff && nextStep.state === "ready";
+  const needsReview = latestHandoff && nextStep.state === "review_needed";
+  const completeDefaults = chat.complete_defaults;
+  const currentRole = chat.latest_session?.role_name || workPackage.recommended_role || "Next role";
+  const createAction = !chat.latest_session
+    ? `
+      <form class="action-form" data-start-session="${projectId}">
+        <input type="hidden" name="role_name" value="${escapeHtml(workPackage.recommended_role || "Implementation Lead")}" />
+        <input type="hidden" name="objective" value="${escapeHtml(workPackage.suggested_session_objective || "Start the next recommended work package.")}" />
+        <input type="hidden" name="input_files" value="${escapeHtml(arrayify(workPackage.recommended_files).join("\n"))}" />
+        <button type="submit">Start the next work package</button>
+      </form>
+    `
+    : "";
+  const reviewAction = needsReview
+    ? `
+      <details class="details-block">
+        <summary>Review the next step</summary>
+        <form class="form-grid" data-review-handoff="${latestHandoff.handoff_id}" data-project="${projectId}">
+          <div class="field">
+            <label>Review note</label>
+            <textarea name="note">Record what should happen next before this step continues.</textarea>
           </div>
+          <div class="actions">
+            <button type="submit" name="action" value="approve">Continue</button>
+            <button class="secondary" type="submit" name="action" value="changes_requested">Needs Changes</button>
+            <button class="secondary" type="submit" name="action" value="replan_required">Replan</button>
+          </div>
+        </form>
+      </details>
+    `
+    : "";
+  const completeAction = chat.latest_session && completeDefaults
+    ? `
+      <details class="details-block">
+        <summary>Complete the current role and write the next handoff</summary>
+        <form class="form-grid" data-complete-session="${chat.latest_session.session_id}" data-project="${projectId}">
+          <div class="field"><label>What changed in this round?</label><textarea name="session_summary">${escapeHtml(completeDefaults.session_summary)}</textarea></div>
+          <div class="field"><label>Which role should continue next?</label><input type="text" name="next_role_recommendation" value="${escapeHtml(completeDefaults.next_role_recommendation)}" /></div>
+          <div class="field"><label>Why is that the right next step?</label><textarea name="next_role_reason">${escapeHtml(completeDefaults.next_role_reason)}</textarea></div>
+          <div class="field"><label>What should the next step read?</label><textarea name="required_input_files">${escapeHtml(arrayify(completeDefaults.required_input_files).join("\n"))}</textarea></div>
+          <div class="field"><label>What should success look like next?</label><textarea name="success_criteria">${escapeHtml(arrayify(completeDefaults.success_criteria).join("\n"))}</textarea></div>
+          <div class="field"><label>Risks or blockers</label><textarea name="risks">${escapeHtml(arrayify(completeDefaults.risks).join("\n"))}</textarea></div>
+          <div class="field"><label>Most important note to preserve</label><textarea name="transcript_note">${escapeHtml(completeDefaults.transcript_note || "")}</textarea></div>
+          <div class="field"><label>Follow-up actions</label><textarea name="followup_actions">${escapeHtml(arrayify(completeDefaults.followup_actions).join("\n"))}</textarea></div>
+          <details class="details-block">
+            <summary>Advanced handoff controls</summary>
+            <div class="details-stack">
+              <div class="field"><label>Task status changes</label><textarea name="task_status_changes">${escapeHtml(arrayify(completeDefaults.task_status_changes).join("\n"))}</textarea></div>
+              <div class="field"><label>Review outcome</label><input type="text" name="review_outcome" value="${escapeHtml(completeDefaults.review_outcome || "")}" /></div>
+              <div class="field"><label>Acceptance status</label><input type="text" name="acceptance_status" value="${escapeHtml(completeDefaults.acceptance_status || "")}" /></div>
+            </div>
+          </details>
+          <div class="actions"><button type="submit">Complete this role</button></div>
+        </form>
+      </details>
+    `
+    : "";
+  return sectionCard(
+    "Current working area",
+    `
+      <div class="focus-strip">
+        <div>
+          <strong>Current goal</strong>
+          <p>${escapeHtml(chat.project?.goal || chat.goal_model?.core_goal || "Continue the project from the saved state.")}</p>
+        </div>
+        <div>
+          <strong>Current role</strong>
+          <p>${escapeHtml(currentRole)}</p>
         </div>
       </div>
+      ${createAction}
+      ${canContinue ? `<div class="actions"><button type="button" data-advance-handoff="${latestHandoff.handoff_id}" data-project="${projectId}">Continue the recommended step</button></div>` : ""}
+      ${reviewAction}
+      ${completeAction}
+    `,
+    "Current objective"
+  );
+}
+
+function renderWorkspace(chat, pathname) {
+  const projectId = chat.project_id;
+  const workPackage = getWorkPackage(chat);
+  const state = statusUi(chat.next_step?.state || workPackage.next_step_state || "none");
+  const compatibility = oldRouteMessage(pathname, projectId);
+  return shell(`
+    ${renderFlash()}
+    ${compatibility}
+    <section class="hero workspace-hero">
+      <div class="hero-header">
+        <div>
+          <div class="eyebrow">Chat Workspace</div>
+          <h1>${escapeHtml(chat.project?.project_name || "OpenFlow Workspace")}</h1>
+          <p class="lede">${escapeHtml(chat.project?.goal || chat.goal_model?.core_goal || "Continue the next saved project outcome.")}</p>
+        </div>
+        <div class="hero-status">
+          <span class="status-chip ${state.className}">${escapeHtml(state.label)}</span>
+          <p>${escapeHtml(state.explanation)}</p>
+        </div>
+      </div>
+      <div class="hero-grid">
+        <div class="hero-stat"><strong>Stage</strong><span>${escapeHtml(chat.project_stage || "unknown")}</span></div>
+        <div class="hero-stat"><strong>Current role</strong><span>${escapeHtml(chat.latest_session?.role_name || workPackage.recommended_role || "No active role")}</span></div>
+        <div class="hero-stat"><strong>Latest handoff</strong><span>${escapeHtml(chat.latest_handoff?.acceptance_status || "none")}</span></div>
+        <div class="hero-stat"><strong>Progress</strong><span>${escapeHtml(String(chat.observability_snapshot?.progress_percent || 0) + "%")}</span></div>
+      </div>
     </section>
-    <section class="grid grid-2">
-      <article class="panel">
+    <section class="workspace-layout">
+      <div class="workspace-main">
+        ${renderActionPanel(projectId, chat, workPackage)}
+        ${sectionCard("Chat input", `
+          <div class="composer-context">
+            <div class="compact-tags">
+              ${tag(chat.project_stage || "Unknown stage")}
+              ${tag(chat.latest_session?.role_name || workPackage.recommended_role || "No active role")}
+              ${tag(statusUi(chat.next_step?.state || "none").label, "state")}
+            </div>
+            <p class="muted">Use this space to continue the current session, test the next move, or record the change that should be preserved.</p>
+          </div>
+          <form id="chat-message-form" class="form-grid" data-chat-project="${projectId}">
+            <input type="hidden" name="project_id" value="${escapeHtml(projectId)}" />
+            <input type="hidden" name="session_id" value="${escapeHtml(chat.latest_session?.session_id || "")}" />
+            <div class="field">
+              <label>What should happen in this round?</label>
+              <textarea name="message" placeholder="Describe the next action, correction, or request for this session."></textarea>
+            </div>
+            <div class="form-row-inline">
+              <div class="field">
+                <label>Action</label>
+                <select name="action">
+                  <option value="continue">Continue current work</option>
+                  <option value="complete">Complete current work</option>
+                  <option value="review">Request a review response</option>
+                  <option value="replan">Trigger replanning</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Mode</label>
+                <select name="mode">
+                  <option value="simulated">Simulated</option>
+                  <option value="provider">Provider</option>
+                </select>
+              </div>
+            </div>
+            <div class="actions"><button type="submit">Send to current session</button></div>
+          </form>
+        `, "Current session")}
+        ${sectionCard("Current session conversation", renderConversation(chat.session_detail), "Current session")}
+        ${sectionCard("Recent execution record", renderKeyRounds(chat.observability_snapshot), "Recent execution")}
+        ${sectionCard("Why continuity still holds", `
+          <div class="continuity-panel">
+            <p>Every role still starts in a fresh session. Continuity is carried by files, memory packs, handoffs, decisions, and timeline events rather than hidden runtime context.</p>
+            <div class="compact-tags">
+              ${tag(`Memory layers: ${(chat.memory_pack_preview || []).length}`)}
+              ${tag(`Timeline events: ${(chat.timeline || []).length}`)}
+              ${tag(`Latest session: ${chat.latest_session?.status || "none"}`)}
+            </div>
+          </div>
+        `, "Continuity")}
+      </div>
+      <aside class="workspace-rail">
+        ${renderObjectivePanel(chat)}
+        ${renderWorkPackagePanel(workPackage)}
+        ${renderReadinessPanel(workPackage)}
+        ${renderMemoryPanel(chat, workPackage)}
+        ${renderObservabilityPanel(chat)}
+        ${renderBlockersPanel(chat, workPackage)}
+        ${renderImprovementPanel(chat)}
+      </aside>
+    </section>
+  `, projectId, "workspace");
+}
+
+function renderConfigSummary(config) {
+  return `
+    <section class="hero config-hero">
+      <div class="eyebrow">System Config</div>
+      <h1>${escapeHtml(config.project?.project_name || "System configuration")}</h1>
+      <p class="lede">This page explains how the project is configured, how roles are assembled, how memory is preserved, and where human review still constrains execution.</p>
+      <div class="hero-grid">
+        <div class="hero-stat"><strong>Stage</strong><span>${escapeHtml(config.project_stage || "unknown")}</span></div>
+        <div class="hero-stat"><strong>Plan layers</strong><span>${escapeHtml(String((config.plan_layers?.phases || []).length || 0))}</span></div>
+        <div class="hero-stat"><strong>Roles</strong><span>${escapeHtml(String((config.role_profiles || []).length || 0))}</span></div>
+        <div class="hero-stat"><strong>Capabilities</strong><span>${escapeHtml(String((config.capability_registry || []).length || 0))}</span></div>
+      </div>
+    </section>
+  `;
+}
+
+function renderConfigSection(title, summary, detail, eyebrow) {
+  return `
+    <section class="panel config-section">
+      <div class="eyebrow">${escapeHtml(eyebrow)}</div>
+      <div class="section-head">
+        <h2>${escapeHtml(title)}</h2>
+      </div>
+      <p>${summary}</p>
+      <details class="details-block">
+        <summary>Open details</summary>
+        <div class="details-stack">${detail}</div>
+      </details>
+    </section>
+  `;
+}
+
+function renderSystemConfig(config, pathname = "") {
+  const projectId = config.project_id;
+  const compatibility = oldRouteMessage(pathname, projectId);
+  const projectDefinition = renderConfigSection(
+    "Project Definition",
+    escapeHtml(config.goal_model?.core_goal || config.project?.goal || "Define what this project is trying to finish and what success looks like."),
+    `
+      <div><strong>Core goal</strong><p>${escapeHtml(config.goal_model?.core_goal || "Not recorded")}</p></div>
+      <div><strong>Explicit constraints</strong><ul class="bullet-list">${arrayify(config.goal_model?.explicit_constraints).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No explicit constraints recorded.</li>"}</ul></div>
+      <div><strong>Anti-goals</strong><ul class="bullet-list">${arrayify(config.goal_model?.anti_goals).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No anti-goals recorded.</li>"}</ul></div>
+      <div><strong>Success criteria</strong><ul class="bullet-list">${arrayify(config.goal_model?.success_criteria).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No success criteria recorded.</li>"}</ul></div>
+    `,
+    "Project definition"
+  );
+  const workflowDefinition = renderConfigSection(
+    "Workflow Definition",
+    "This section shows how the system layers strategy, phases, milestones, and execution nodes into one visible project path.",
+    `
+      <div><strong>Strategic layer</strong><ul class="bullet-list">${arrayify(config.plan_layers?.strategic).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No strategic layer recorded.</li>"}</ul></div>
+      <div><strong>Phases</strong><ul class="bullet-list">${arrayify(config.plan_layers?.phases).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No phases recorded.</li>"}</ul></div>
+      <div><strong>Milestones</strong><ul class="bullet-list">${arrayify(config.plan_layers?.milestones).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No milestones recorded.</li>"}</ul></div>
+      <div><strong>Task graph</strong><ul class="bullet-list">${arrayify(config.task_graph_v2?.nodes).slice(0, 8).map((node) => `<li>${escapeHtml(node.title || node.node_id || "node")} | ${escapeHtml(node.owner_role || "n/a")} | ${escapeHtml(node.status || "unknown")}</li>`).join("") || "<li>No task graph nodes recorded.</li>"}</ul></div>
+    `,
+    "Workflow definition"
+  );
+  const roleSystem = renderConfigSection(
+    "Role System",
+    "This section explains which roles exist, what each role is expected to do, and how fresh sessions are assigned to those roles.",
+    `
+      <div class="card-grid dense-grid">
+        ${arrayify(config.role_profiles).map((role) => `
+          <div class="config-mini-card">
+            <strong>${escapeHtml(role.role_name || "Role")}</strong>
+            <p>${escapeHtml(role.session_intent || role.objective || "No role objective recorded.")}</p>
+            <p class="microcopy">${escapeHtml(role.prompt_style || role.agent_profile || "Fresh session role profile")}</p>
+          </div>
+        `).join("") || `<div class="config-mini-card"><strong>No role profiles recorded.</strong></div>`}
+      </div>
+    `,
+    "Role system"
+  );
+  const capabilityAssembly = renderConfigSection(
+    "Capability Assembly",
+    "This section explains which abilities are available in the project and which work nodes are wired to them.",
+    `
+      <div><strong>Registered capabilities</strong><ul class="bullet-list">${arrayify(config.capability_registry).slice(0, 10).map((item) => `<li>${escapeHtml(item.capability_name || item.name || "Capability")} | ${escapeHtml(item.capability_type || item.kind || "type")}</li>`).join("") || "<li>No capabilities recorded.</li>"}</ul></div>
+      <div><strong>Which stages use which abilities</strong><ul class="bullet-list">${arrayify(config.node_capability_map).slice(0, 10).map((item) => `<li>${escapeHtml(item.node_id || "node")} -> ${escapeHtml(arrayify(item.capabilities).join(", ") || "No mapped capabilities")}</li>`).join("") || "<li>No capability mappings recorded.</li>"}</ul></div>
+    `,
+    "Capability assembly"
+  );
+  const memoryStrategy = renderConfigSection(
+    "Memory Strategy",
+    "This section explains what the system treats as facts, assumptions, open questions, and preserved memory structures for later sessions.",
+    `
+      <div><strong>Validated facts</strong><ul class="bullet-list">${arrayify(config.cognitive_state?.validated_facts).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No validated facts recorded.</li>"}</ul></div>
+      <div><strong>Active assumptions</strong><ul class="bullet-list">${arrayify(config.cognitive_state?.active_assumptions).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No active assumptions recorded.</li>"}</ul></div>
+      <div><strong>Open questions</strong><ul class="bullet-list">${arrayify(config.cognitive_state?.open_questions).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No open questions recorded.</li>"}</ul></div>
+      <div><strong>System memory schemas</strong><ul class="bullet-list">${Object.entries(config.prewire_schemas || {}).map(([key, value]) => `<li>${escapeHtml(key)} | ${escapeHtml(value.policy_schema || value.schema || "configured")}</li>`).join("") || "<li>No prewired memory schemas recorded.</li>"}</ul></div>
+    `,
+    "Memory strategy"
+  );
+  const governance = renderConfigSection(
+    "Session And Governance",
+    "This section explains where human review is required, where confirmation gates exist, and how the system decides whether to continue or stop.",
+    `
+      <div><strong>Current governance view</strong><p>${escapeHtml(config.governance?.why_current_state || "No governance narrative recorded.")}</p></div>
+      <div><strong>Latest review state</strong><p>${escapeHtml(config.governance?.latest_review || "No review status recorded.")}</p></div>
+      <div><strong>Why the current role is active</strong><p>${escapeHtml(config.governance?.why_next_role || config.governance?.why_current_state || "No next-role explanation recorded.")}</p></div>
+      <div><strong>Governance schemas</strong><ul class="bullet-list">${Object.entries(config.prewire_schemas?.governance || {}).map(([key, value]) => `<li>${escapeHtml(key)}: ${escapeHtml(String(value))}</li>`).join("") || "<li>No governance schema recorded.</li>"}</ul></div>
+    `,
+    "Session and governance"
+  );
+  return shell(`
+    ${renderFlash()}
+    ${compatibility}
+    ${renderConfigSummary(config)}
+    <section class="config-layout">
+      ${projectDefinition}
+      ${workflowDefinition}
+      ${roleSystem}
+      ${capabilityAssembly}
+      ${memoryStrategy}
+      ${governance}
+    </section>
+  `, projectId, "config");
+}
+
+async function renderLanding() {
+  const payload = await apiFetch("/api/app/landing");
+  appState.landingPayload = payload;
+  const presets = payload.mode_presets || [];
+  const defaultMode = payload.defaults.preferred_project_mode || presets[0]?.id || "delivery";
+  return shell(`
+    ${renderFlash()}
+    <section class="hero landing-hero">
+      <div class="eyebrow">OpenFlow</div>
+      <h1>Start a fresh-session workspace that continues from files instead of hidden context.</h1>
+      <p class="lede">Pick the kind of work you are doing, seed the project with the materials you already have, and OpenFlow will create the first working surface around the next practical step.</p>
+      <div class="hero-grid">
+        ${(payload.proof_points || []).map((item) => `<div class="hero-stat"><strong>${escapeHtml(item)}</strong></div>`).join("")}
+      </div>
+    </section>
+    <section class="landing-layout">
+      <section class="panel">
         <div class="eyebrow">Choose Mode</div>
-        <h2>Start from the kind of work you are actually doing</h2>
+        <h2>Start from the type of work you are actually doing</h2>
         <div class="mode-grid">
           ${presets.map((item) => `
             <button
@@ -270,7 +747,6 @@ async function renderLanding() {
               data-mode-preset="${escapeHtml(item.id)}"
               data-goal="${escapeHtml(item.goal)}"
               data-prompt="${escapeHtml(item.initial_prompt)}"
-              data-role="${escapeHtml(item.starter_role)}"
             >
               <span class="mode-label">${escapeHtml(item.label)}</span>
               <strong>${escapeHtml(item.headline)}</strong>
@@ -278,645 +754,187 @@ async function renderLanding() {
             </button>
           `).join("")}
         </div>
-      </article>
-      <article class="panel">
+      </section>
+      <section class="panel">
         <div class="eyebrow">Create Workspace</div>
         <h2>Start from the materials you already have</h2>
         <form id="bootstrap-form" class="form-grid">
           <input type="hidden" name="preferred_project_mode" value="${escapeHtml(defaultMode)}" />
-          <div class="field"><label>Workspace name</label><input name="project_name" type="text" value="${escapeHtml(payload.defaults.project_name)}" /></div>
-          <div class="field"><label>What should this workspace finish?</label><input name="goal" type="text" value="${escapeHtml(payload.defaults.goal)}" /></div>
+          <div class="field"><label>Workspace name</label><input type="text" name="project_name" value="${escapeHtml(payload.defaults.project_name)}" /></div>
+          <div class="field"><label>What should this workspace finish?</label><input type="text" name="goal" value="${escapeHtml(payload.defaults.goal)}" /></div>
           <div class="field"><label>What materials, context, or constraints are already available?</label><textarea name="initial_prompt">${escapeHtml(payload.defaults.initial_prompt)}</textarea></div>
           <div class="actions">
             <button type="submit">Create Workspace</button>
-            <button id="landing-demo-link" class="secondary" type="button">Use Example Inputs</button>
+            <button id="landing-demo-link" type="button" class="secondary">Use example inputs</button>
           </div>
         </form>
-      </article>
-      <aside class="grid">
-        <section class="panel">
-          <div class="eyebrow">Common Starts</div>
-          <h3>What people usually bring in</h3>
-          ${chips(payload.examples)}
-        </section>
-        <section class="panel">
-          <div class="eyebrow">What You See Next</div>
-          <p class="muted">After the first submit, the workspace shifts into one main track: current goal, organized materials, current progress, and the suggested next step.</p>
-          ${chips(["Current goal", "Organized materials", "Current progress", "Suggested next step"])}
-        </section>
-        <section class="panel">
-          <div class="eyebrow">Advanced Surfaces</div>
-          <p class="muted">The main path stays simple, while workflow, materials, tasks, and governance remain accessible underneath when the project needs them.</p>
-          ${chips(payload.blueprint.demo_sections)}
-        </section>
+      </section>
+      <aside class="panel">
+        <div class="eyebrow">What the system makes visible</div>
+        <h2>Only two primary surfaces</h2>
+        <ul class="bullet-list">
+          <li>Chat Workspace: what to do now, why this is the next step, and whether the project can continue.</li>
+          <li>System Config: how the project is configured, constrained, and wired for fresh sessions.</li>
+        </ul>
       </aside>
     </section>
-  `;
+  `);
 }
 
-function renderFirstStepCard(projectId, defaults) {
-  return `
-    <section class="panel">
-      <div class="eyebrow">Start First Work Step</div>
-      <h2>Create the first practical step from this workspace</h2>
-      <form class="form-grid" data-first-step="${projectId}">
-        <div class="field"><label>Who should work on this first?</label><input name="role_name" type="text" value="${escapeHtml(defaults.role_name)}" /></div>
-        <div class="field"><label>What should this first step accomplish?</label><textarea name="objective">${escapeHtml(defaults.objective)}</textarea></div>
-        <div class="field"><label>Which materials should it read first?</label><textarea name="input_files">${escapeHtml(defaults.input_files)}</textarea></div>
-        <div class="actions">
-          <button type="submit">Start First Work Step</button>
-          <a class="button secondary" href="/app/projects/${projectId}/knowledge" data-nav>Review Materials First</a>
-        </div>
-      </form>
+function renderLoading(projectId = "", active = "") {
+  appRoot.innerHTML = shell(`
+    <section class="panel loading-panel">
+      <div class="eyebrow">Loading</div>
+      <h2>Preparing the workspace</h2>
+      <p class="muted">Reading the latest project files, handoffs, memory, and saved execution state.</p>
     </section>
-  `;
+  `, projectId, active);
 }
 
-function renderReviewForm(projectId, handoffId, sessionId = "") {
-  return `
-    <form class="form-grid" data-review-handoff="${handoffId}" data-project="${projectId}" data-session="${sessionId}">
-      <div class="field"><label>Review note</label><textarea name="note">Record what should happen next before this step continues.</textarea></div>
+function renderError(error, projectId = "", active = "") {
+  appRoot.innerHTML = shell(`
+    <section class="panel error-panel">
+      <div class="eyebrow">Error</div>
+      <h2>Could not load this surface</h2>
+      <p>${escapeHtml(error.message || String(error))}</p>
       <div class="actions">
-        <button type="submit" name="action" value="approve">Continue</button>
-        <button class="secondary" type="submit" name="action" value="changes_requested">Needs Changes</button>
-        <button class="secondary" type="submit" name="action" value="replan_required">Replan</button>
+        <button type="button" onclick="window.location.reload()">Reload</button>
+        <a class="button secondary" href="/app" data-nav>Back to landing</a>
       </div>
-    </form>
-  `;
+    </section>
+  `, projectId, active);
 }
 
-function renderWorkPackageFiles(files = [], heading = "Files to read first") {
-  if (!files.length) {
-    return "";
+function bindLandingInteractions() {
+  const form = document.getElementById("bootstrap-form");
+  if (!form) {
+    return;
   }
-  const preview = files.slice(0, 2);
-  const rest = files.slice(2);
-  return `
-    <div class="work-package-card">
-      <strong>${escapeHtml(heading)}</strong>
-      <div class="compact-list" style="margin-top:8px">
-        ${preview.map((item) => `<div><code>${escapeHtml(item)}</code></div>`).join("")}
-      </div>
-      ${rest.length ? `<details class="details-block"><summary>Show all files</summary><div class="compact-list" style="margin-top:10px">${rest.map((item) => `<div><code>${escapeHtml(item)}</code></div>`).join("")}</div></details>` : ""}
-    </div>
-  `;
-}
+  const modeCards = [...document.querySelectorAll("[data-mode-preset]")];
+  const hiddenMode = form.querySelector('input[name="preferred_project_mode"]');
+  const goalInput = form.querySelector('input[name="goal"]');
+  const promptInput = form.querySelector('textarea[name="initial_prompt"]');
 
-function renderRecommendedWorkPackage(projectId, workPackage, options = {}) {
-  const stateUi = getNextStepStateUi(workPackage.next_step_state, workPackage.ready_for_auto_advance);
-  const intro = options.variant === "welcome"
-    ? "This is the first practical work package the system wants to queue from the records it already has."
-    : "This is the next practical work package the system wants the project to move into.";
-  const blockingItems = workPackage.blocking_items || [];
-  const autoBlockers = workPackage.auto_advance_blockers || [];
-  const showImmediateBlockers = !workPackage.ready_for_auto_advance || (workPackage.human_action_required && !blockingItems.length);
-  const immediateBlockerList = blockingItems.length ? blockingItems : autoBlockers;
-  return `
-    <section class="panel">
-      <div class="work-package">
-        <div class="work-package-header">
-          <div class="work-package-meta">
-            <div class="eyebrow">Recommended Work Package</div>
-            <h2>What the project should do next</h2>
-            <p class="muted">${escapeHtml(intro)}</p>
-          </div>
-          <span class="status-chip ${stateUi.chipClass}">${escapeHtml(stateUi.chipLabel)}</span>
-        </div>
-        <div class="callout ${workPackage.ready_for_auto_advance ? "success" : workPackage.next_step_state === "review_needed" ? "warning" : "soft"}">
-          <strong>${escapeHtml(workPackage.recommended_role || "Implementation Lead")}</strong>
-          <p>${escapeHtml(workPackage.recommended_action || "Continue with the next work package.")}</p>
-          <p class="microcopy">${escapeHtml(stateUi.message)}</p>
-        </div>
-        ${showImmediateBlockers ? `
-          <div class="callout ${immediateBlockerList.length ? "danger" : "warning"}">
-            <strong>${workPackage.ready_for_auto_advance ? "Human check still required" : "Why it cannot continue automatically yet"}</strong>
-            ${immediateBlockerList.length
-              ? `<ul class="bullet-list">${immediateBlockerList.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
-              : `<p>${escapeHtml(workPackage.human_action_required ? "The system has a recommendation, but a person still needs to decide or start the next step." : "The next work package is visible, but the project is not marked ready for automatic continuation yet.")}</p>`}
-          </div>
-        ` : `
-          <div class="callout success">
-            <strong>Auto-continue conditions are already in place</strong>
-            <p>The project records already satisfy the conditions for continuing. This page is only explaining the state, not triggering execution.</p>
-          </div>
-        `}
-        <div class="work-package-summary">
-          <div class="work-package-card">
-            <strong>Why this is recommended</strong>
-            <p>${escapeHtml(workPackage.recommended_reason || "This path best fits the current project state.")}</p>
-          </div>
-          <div class="work-package-card">
-            <strong>Expected output</strong>
-            <p>${escapeHtml(workPackage.expected_output || "Produce the next saved project result.")}</p>
-          </div>
-          ${renderWorkPackageFiles(workPackage.recommended_files)}
-          <div class="work-package-card">
-            <strong>Suggested objective</strong>
-            <p>${escapeHtml(workPackage.suggested_session_objective || "Start the next recommended work package.")}</p>
-          </div>
-        </div>
-        <details class="details-block" ${options.expanded ? "open" : ""}>
-          <summary>Open full work package details</summary>
-          <div class="separator-list" style="margin-top:12px">
-            ${renderWorkPackageFiles(workPackage.recommended_files, "Full file list")}
-            ${workPackage.success_criteria?.length ? `<div class="separator-item"><strong>Success criteria</strong><ul class="bullet-list">${workPackage.success_criteria.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>` : ""}
-            ${workPackage.risks?.length ? `<div class="separator-item"><strong>Risks to watch</strong><ul class="bullet-list">${workPackage.risks.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>` : ""}
-            ${blockingItems.length ? `<div class="separator-item"><strong>Current blocking items</strong><ul class="bullet-list">${blockingItems.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>` : ""}
-            <div class="separator-item"><strong>Confidence</strong><p>${escapeHtml(getConfidenceLabel(workPackage.confidence))}</p></div>
-            ${workPackage.secondary_note ? `<div class="separator-item"><strong>Additional note</strong><p>${escapeHtml(workPackage.secondary_note)}</p></div>` : ""}
-          </div>
-        </details>
-        ${options.showActionLink ? `<div class="actions"><a class="button secondary" href="${options.showActionLink}" data-nav>Open the page that handles this step</a></div>` : ""}
-      </div>
-    </section>
-  `;
-}
-
-function renderRecommendationExplanation(workPackage) {
-  const snapshot = workPackage.materials_snapshot || {};
-  const hasBlockingInfluence = workPackage.blocking_items?.length;
-  return `
-    <section class="panel">
-      <div class="eyebrow">Why This Work Package Is Recommended</div>
-      <h2>Why the system is steering the project this way</h2>
-      <div class="callout soft">
-        <strong>${escapeHtml(workPackage.recommended_reason || "The current project state points toward this path.")}</strong>
-        <p class="microcopy">${escapeHtml(getRecommendationSourceLabel(workPackage.recommendation_source))}</p>
-      </div>
-      <div class="metrics-mini" style="margin-top:14px">
-        <div class="metric-mini"><strong>Organized materials</strong><span class="microcopy">${snapshot.organized_material_count || 0}</span></div>
-        <div class="metric-mini"><strong>Raw sources</strong><span class="microcopy">${snapshot.raw_source_count || 0}</span></div>
-        <div class="metric-mini"><strong>Synthesized insights</strong><span class="microcopy">${snapshot.synthesized_count || 0}</span></div>
-        <div class="metric-mini"><strong>Linked decision materials</strong><span class="microcopy">${snapshot.linked_count || 0}</span></div>
-      </div>
-      <div class="separator-list" style="margin-top:14px">
-        <div class="separator-item">
-          <strong>How reliable this looks right now</strong>
-          <p>${escapeHtml(getConfidenceLabel(workPackage.confidence))}</p>
-        </div>
-        ${hasBlockingInfluence ? `<div class="separator-item"><strong>What is also affecting this recommendation</strong><ul class="bullet-list">${workPackage.blocking_items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>` : ""}
-        ${workPackage.secondary_note ? `<div class="separator-item"><strong>Additional context</strong><p>${escapeHtml(workPackage.secondary_note)}</p></div>` : ""}
-      </div>
-    </section>
-  `;
-}
-
-function renderAutoAdvanceReadiness(workPackage) {
-  const stateUi = getNextStepStateUi(workPackage.next_step_state, workPackage.ready_for_auto_advance);
-  const blockers = workPackage.auto_advance_blockers?.length ? workPackage.auto_advance_blockers : workPackage.blocking_items || [];
-  return `
-    <section class="panel">
-      <div class="eyebrow">Auto-Advance Readiness</div>
-      <h2>Whether the next step is actually ready to continue</h2>
-      <div class="callout ${workPackage.ready_for_auto_advance ? "success" : blockers.length ? "danger" : "warning"}">
-        <strong>${workPackage.ready_for_auto_advance ? "The current records satisfy the continuation conditions." : "The system has a recommendation, but it is not ready to continue automatically yet."}</strong>
-        <p>${escapeHtml(stateUi.message)}</p>
-      </div>
-      ${!workPackage.ready_for_auto_advance ? `
-        <div class="separator-item">
-          <strong>What is stopping automatic continuation right now</strong>
-          ${blockers.length
-            ? `<ul class="bullet-list">${blockers.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
-            : `<p>${escapeHtml(workPackage.human_action_required ? "A person still needs to review, choose, or start the next step." : "The next step is visible, but the project is not marked ready to continue automatically.")}</p>`}
-        </div>
-      ` : ""}
-      <div class="separator-list" style="margin-top:14px">
-        <div class="separator-item">
-          <strong>Suggested objective for the next session</strong>
-          <p>${escapeHtml(workPackage.suggested_session_objective || workPackage.recommended_action || "Continue the next recommended work package.")}</p>
-        </div>
-        ${workPackage.success_criteria?.length ? `<div class="separator-item"><strong>What a good next result should look like</strong><ul class="bullet-list">${workPackage.success_criteria.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>` : ""}
-        ${workPackage.risks?.length ? `<div class="separator-item"><strong>What to watch after it continues</strong><ul class="bullet-list">${workPackage.risks.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>` : ""}
-      </div>
-    </section>
-  `;
-}
-
-async function renderWelcome(projectId) {
-  const { summary, first_step_defaults } = await apiFetch(`/api/app/projects/${projectId}/welcome`);
-  const recommendation = summary.recommendation;
-  const handoff = summary.latest_handoff;
-  const nextStep = summary.next_step;
-  const workPackage = getRecommendedWorkPackage(summary);
-  const modeUi = getModeUi(summary.state.project_mode);
-  const actionArea = handoff && nextStep.state === "ready"
-    ? `<button type="button" data-advance-handoff="${handoff.handoff_id}" data-project="${projectId}">Continue Recommended Step</button>
-       <a class="button secondary" href="/app/projects/${projectId}" data-nav>Open Workspace</a>`
-    : handoff && nextStep.state === "review_needed"
-      ? `<a class="button" href="/app/projects/${projectId}" data-nav>Open Workspace</a>
-         <a class="button secondary" href="/app/projects/${projectId}/workflow" data-nav>Open Review Context</a>`
-      : nextStep.state === "research_gap"
-        ? `<a class="button" href="/app/projects/${projectId}/knowledge" data-nav>Organize Materials</a>`
-        : `<a class="button secondary" href="/app/projects/${projectId}" data-nav>Open Workspace</a>`;
-  return `
-    <section class="hero">
-      <div class="eyebrow">Workspace Ready</div>
-      <h1>${escapeHtml(summary.project.project_name)} is ready for the next action.</h1>
-      <p class="lede">${escapeHtml(summary.project.goal)}</p>
-      ${statline([
-        `Work type: ${summary.state.project_type_label}`,
-        `Stage: ${summary.project_stage}`,
-        `Organized materials: ${summary.materials.organized_material_count}`,
-        `Current progress: ${summary.governance.latest_review}`,
-      ])}
-    </section>
-    <section class="grid grid-2">
-      <article class="grid">
-        <section class="panel">
-          <div class="eyebrow">${escapeHtml(modeUi.label)}</div>
-          <h2>${escapeHtml(modeUi.kicker)}</h2>
-          <p class="muted">${escapeHtml(modeUi.narrative)}</p>
-          ${chips(modeUi.highlights)}
-        </section>
-        <section class="panel">
-          <div class="eyebrow">Suggested Next Step</div>
-          <h2>Start where the current records say the work should continue</h2>
-          <div class="callout">
-            <strong>${escapeHtml(recommendation.recommended_role)}</strong>
-            <p class="muted">${escapeHtml(recommendation.recommended_reason)}</p>
-            <p class="microcopy">Why the system recommends this: ${escapeHtml(summary.why_next_role)}</p>
-          </div>
-          <div class="list">
-            <div class="list-item"><strong>Why you are starting here</strong><p>${escapeHtml(summary.governance.why_current_state)}</p></div>
-            <div class="list-item"><strong>Recommended action</strong><p>${escapeHtml(nextStep.message)}</p><div class="actions">${actionArea}</div></div>
-          </div>
-        </section>
-        ${renderRecommendedWorkPackage(projectId, workPackage, {
-          variant: "welcome",
-          showActionLink: `/app/projects/${projectId}`,
-        })}
-        ${!handoff && nextStep.state !== "research_gap" ? renderFirstStepCard(projectId, first_step_defaults) : ""}
-      </article>
-      <aside class="grid">
-        <section class="panel"><div class="eyebrow">Goal</div><h3>What this workspace is trying to finish</h3><p>${escapeHtml(summary.project.goal)}</p></section>
-        <section class="panel"><div class="eyebrow">Materials</div><h3>What is already organized</h3><p>${escapeHtml(summary.materials.summary)}</p></section>
-        <section class="panel"><div class="eyebrow">Progress</div><h3>Current state in ordinary work language</h3><p>${escapeHtml(summary.governance.why_current_state)}</p></section>
-        ${renderRecommendationExplanation(workPackage)}
-      </aside>
-    </section>
-  `;
-}
-
-async function renderProject(projectId) {
-  const { summary, timeline } = await apiFetch(`/api/app/projects/${projectId}/workspace`);
-  const handoff = summary.latest_handoff;
-  const recommendation = summary.recommendation;
-  const nextStep = summary.next_step;
-  const workPackage = getRecommendedWorkPackage(summary);
-  const modeUi = getModeUi(summary.state.project_mode);
-  const actionArea = handoff && nextStep.state === "review_needed"
-    ? renderReviewForm(projectId, handoff.handoff_id)
-    : handoff && nextStep.state === "ready"
-      ? `<button type="button" data-advance-handoff="${handoff.handoff_id}" data-project="${projectId}">${escapeHtml(nextStep.primary_label)}</button>`
-      : nextStep.state === "research_gap"
-        ? `<a class="button" href="/app/projects/${projectId}/knowledge" data-nav>${escapeHtml(nextStep.primary_label)}</a>`
-        : nextStep.state === "blocked"
-          ? `<a class="button" href="/app/projects/${projectId}/tasks" data-nav>${escapeHtml(nextStep.primary_label)}</a>`
-          : `<a class="button secondary" href="/app/projects/${projectId}/knowledge" data-nav>Organize Materials</a>`;
-  return `
-    <section class="hero">
-      <div class="eyebrow">Workspace Overview</div>
-      <h1>${escapeHtml(summary.project.project_name)}</h1>
-      <p class="lede">${escapeHtml(summary.project.goal)}</p>
-      ${statline([
-        `Work type: ${summary.state.project_type_label}`,
-        `Stage: ${summary.project_stage}`,
-        `Current progress: ${summary.governance.latest_review}`,
-        `Suggested next owner: ${summary.next_role || "n/a"}`,
-        `Organized materials: ${summary.materials.organized_material_count}`,
-      ])}
-    </section>
-    <section class="grid grid-2">
-      <article class="grid">
-        <section class="panel">
-          <div class="eyebrow">${escapeHtml(modeUi.label)}</div>
-          <h2>${escapeHtml(modeUi.kicker)}</h2>
-          <p class="muted">${escapeHtml(modeUi.narrative)}</p>
-          ${chips(modeUi.highlights)}
-        </section>
-        <section class="panel">
-          <div class="eyebrow">Main Track</div>
-          <h2>Suggested Next Step</h2>
-          <div class="callout">
-            <strong>${escapeHtml(recommendation.recommended_role)}</strong>
-            <p class="muted">${escapeHtml(recommendation.recommended_reason)}</p>
-            <p class="microcopy">Why the system recommends this: ${escapeHtml(summary.why_next_role)}</p>
-          </div>
-          <div class="list">
-            <div class="list-item"><strong>Current state</strong><p>${escapeHtml(summary.governance.why_current_state)}</p><p class="microcopy">Blocked now: ${escapeHtml(summary.blocked_now || "No explicit block recorded.")}</p></div>
-            <div class="list-item"><strong>Recommended action</strong><p>${escapeHtml(nextStep.message)}</p><div class="actions">${actionArea}</div></div>
-          </div>
-        </section>
-        ${renderRecommendedWorkPackage(projectId, workPackage, {
-          variant: "workspace",
-          showActionLink: nextStep.state === "research_gap" ? `/app/projects/${projectId}/knowledge` : `/app/projects/${projectId}`,
-        })}
-        <section class="panel">
-          <div class="eyebrow">Progress Snapshot</div>
-          <h2>Current goal and work board snapshot</h2>
-          <div class="list">
-            <div class="list-item"><strong>Material status</strong><p>${escapeHtml(summary.materials.summary)}</p></div>
-            ${summary.state.task_tree.map((task) => `<div class="list-item"><strong>${escapeHtml(task.title)}</strong><p class="microcopy">${escapeHtml(task.status)} | ${escapeHtml(task.owner_role)} | Priority ${task.priority}</p>${task.blocked_reason ? `<p>Blocked: ${escapeHtml(task.blocked_reason)}</p>` : ""}</div>`).join("")}
-          </div>
-        </section>
-      </article>
-      <aside class="grid">
-        <section class="panel">${summary.latest_session ? `<div class="eyebrow">Current Progress</div><h3>${escapeHtml(summary.latest_session.role_name)}</h3><p class="muted">${escapeHtml(summary.latest_session.status)}</p><a class="button secondary" href="/app/projects/${projectId}/sessions/${summary.latest_session.session_id}" data-nav>Open work step detail</a>` : `<p class="muted">No session exists yet.</p>`}</section>
-        <section class="panel"><div class="eyebrow">Research Slots</div>${chips(summary.state.research_slots)}</section>
-        ${renderRecommendationExplanation(workPackage)}
-        <section class="panel"><div class="eyebrow">Timeline</div><div class="list">${timeline.slice(0, 3).map((item) => `<div class="result-block"><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.summary)}</p><p class="microcopy">Because: ${escapeHtml(item.because)}</p></div>`).join("")}</div></section>
-      </aside>
-    </section>
-  `;
-}
-
-function selectHtml(name, values, selected) {
-  return `
-    <select name="${name}">
-      <option value="">All</option>
-      ${values.map((value) => `<option value="${escapeHtml(value)}" ${selected === value ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}
-    </select>
-  `;
-}
-
-async function renderSession(projectId, sessionId) {
-  const { payload, complete_defaults } = await apiFetch(`/api/app/projects/${projectId}/session/${sessionId}`);
-  const handoff = payload.handoff;
-  const recommendation = payload.recommendation;
-  const workPackage = getRecommendedWorkPackage(payload);
-  return `
-    <section class="hero">
-      <div class="eyebrow">Work Step Detail</div>
-      <h1>${escapeHtml(payload.session.role_name)}</h1>
-      <p class="lede">${escapeHtml(payload.session.objective)}</p>
-      ${statline([
-        "Fresh step",
-        `Stage: ${payload.project_stage}`,
-        `Materials declared: ${payload.session.input_files.length}`,
-        `Notes captured: ${payload.transcript.length}`,
-        `Suggested next step ready: ${payload.handoff ? "yes" : "no"}`,
-      ])}
-    </section>
-    <section class="grid grid-2">
-      <article class="grid">
-        <section class="panel">
-          <div class="eyebrow">Materials</div>
-          <h2>Materials used and preserved notes</h2>
-          <div class="list">
-            <div class="list-item"><strong>Materials used</strong>${payload.session.input_files.length ? `<p>${payload.session.input_files.map((item) => `<code>${escapeHtml(item)}</code>`).join("<br />")}</p>` : `<p class="muted">No input files declared.</p>`}</div>
-            <div class="list-item"><strong>Captured notes</strong><p class="muted">${payload.transcript.length} transcript entries</p></div>
-          </div>
-        </section>
-        <section class="panel">
-          <div class="eyebrow">Next Step</div>
-          <h2>Saved result and next action</h2>
-          <div class="callout">
-            <strong>${escapeHtml(recommendation.recommended_role)}</strong>
-            <p class="muted">${escapeHtml(recommendation.recommended_reason)}</p>
-            <p class="microcopy">${escapeHtml(payload.next_step.message)}</p>
-          </div>
-          <div class="list">
-            ${handoff ? `<div class="list-item"><strong>Handoff state</strong><p class="microcopy">Advanced status: ${escapeHtml(handoff.acceptance_status || "not_set")} | Review: ${escapeHtml(handoff.review_outcome || "not_set")}</p>${payload.next_step.state === "review_needed" ? renderReviewForm(projectId, handoff.handoff_id, sessionId) : ""}${payload.next_step.state === "ready" ? `<div class="actions"><button type="button" data-advance-handoff="${handoff.handoff_id}" data-project="${projectId}">${escapeHtml(payload.next_step.primary_label)}</button></div>` : ""}</div>` : `<div class="list-item"><strong>No saved outcome has been written yet.</strong><p class="muted">Complete the work step to produce a handoff and next-step recommendation.</p></div>`}
-          </div>
-        </section>
-        ${renderAutoAdvanceReadiness(workPackage)}
-        <section class="panel">
-          <div class="eyebrow">Complete Step</div>
-          <h2>Write the preserved result and next handoff</h2>
-          <form class="form-grid" data-complete-session="${sessionId}" data-project="${projectId}">
-            <div class="field"><label>What did this step complete?</label><textarea name="session_summary">${escapeHtml(complete_defaults.session_summary)}</textarea></div>
-            <div class="field"><label>What kind of help should continue next?</label><input type="text" name="next_role_recommendation" value="${escapeHtml(complete_defaults.next_role_recommendation)}" /></div>
-            <div class="field"><label>Why is that the right next step?</label><textarea name="next_role_reason">${escapeHtml(complete_defaults.next_role_reason)}</textarea></div>
-            <div class="field"><label>What materials should the next step read?</label><textarea name="required_input_files">${escapeHtml(complete_defaults.required_input_files.join("\n"))}</textarea></div>
-            <div class="field"><label>What would a good next result look like?</label><textarea name="success_criteria">${escapeHtml(complete_defaults.success_criteria.join("\n"))}</textarea></div>
-            <div class="field"><label>Risks or blockers</label><textarea name="risks">${escapeHtml(complete_defaults.risks.join("\n"))}</textarea></div>
-            <div class="field"><label>Most important note to preserve</label><textarea name="transcript_note">${escapeHtml(complete_defaults.transcript_note)}</textarea></div>
-            <div class="field"><label>Follow-up actions</label><textarea name="followup_actions">${escapeHtml(complete_defaults.followup_actions.join("\n"))}</textarea></div>
-            <details><summary>Advanced controls</summary><div class="form-grid" style="margin-top:12px"><div class="field"><label>Task status changes</label><textarea name="task_status_changes">${escapeHtml(complete_defaults.task_status_changes.join("\n"))}</textarea></div><div class="field"><label>Review outcome</label><input type="text" name="review_outcome" value="${escapeHtml(complete_defaults.review_outcome)}" /></div><div class="field"><label>Acceptance status</label><input type="text" name="acceptance_status" value="${escapeHtml(complete_defaults.acceptance_status)}" /></div></div></details>
-            <div class="actions"><button type="submit">Complete Step And Write Handoff</button></div>
-          </form>
-        </section>
-      </article>
-      <aside class="grid">
-        <section class="panel"><div class="eyebrow">Actions</div><div class="actions"><a class="button secondary" href="/app/projects/${projectId}" data-nav>Back To Workspace</a><a class="button secondary" href="/app/projects/${projectId}/knowledge" data-nav>Open Knowledge</a></div></section>
-      </aside>
-    </section>
-  `;
-}
-
-async function renderKnowledge(projectId) {
-  const params = new URLSearchParams(window.location.search);
-  const query = params.toString();
-  const { payload } = await apiFetch(`/api/app/projects/${projectId}/knowledge${query ? `?${query}` : ""}`);
-  return `
-    <section class="hero">
-      <div class="eyebrow">Materials Center</div>
-      <h1>Materials for ${escapeHtml(projectId)}</h1>
-      <p class="lede">${escapeHtml(payload.materials.summary)}</p>
-      ${statline([`Knowledge items: ${payload.materials.knowledge_count}`, `Organized materials: ${payload.materials.organized_material_count}`, `Material groups: ${payload.materials.research_group_count}`])}
-    </section>
-    <section class="grid grid-2">
-      <article class="grid">
-        <section class="panel">
-          <div class="eyebrow">Filters</div>
-          <h2>Find materials</h2>
-          <form class="form-grid" data-knowledge-filter="${projectId}">
-            <div class="field"><label>Search</label><input type="text" name="q" value="${escapeHtml(payload.filters.q || "")}" /></div>
-            <div class="field"><label>Material group</label>${selectHtml("source_family", payload.available_filter_values.source_families, payload.filters.source_family)}</div>
-            <div class="field"><label>Material kind</label>${selectHtml("entry_kind", payload.available_filter_values.entry_kinds, payload.filters.entry_kind)}</div>
-            <div class="field"><label>Adoption status</label>${selectHtml("adoption_status", payload.available_filter_values.adoption_statuses, payload.filters.adoption_status)}</div>
-            <label><input type="checkbox" name="linked_only" value="true" ${payload.filters.linked_only ? "checked" : ""} /> Only show decision-linked materials</label>
-            <div class="actions"><button type="submit">Apply Filters</button></div>
-          </form>
-          <p class="microcopy">Showing ${payload.filtered_count} filtered items.</p>
-        </section>
-        <section class="panel">
-          <div class="eyebrow">Operate</div>
-          <h2>Organize materials into reusable project memory</h2>
-          <form class="form-grid" data-organize-materials="${projectId}">
-            <div class="field"><label>Material set name</label><input type="text" name="pack_title" value="${escapeHtml(payload.organize_defaults.pack_title)}" /></div>
-            <div class="field"><label>Material group</label><input type="text" name="source_family" value="${escapeHtml(payload.organize_defaults.source_family)}" /></div>
-            <div class="field"><label>Where these materials came from</label><input type="text" name="source_ref" value="${escapeHtml(payload.organize_defaults.source_ref)}" /></div>
-            <div class="field"><label>Collected raw material</label><textarea name="raw_notes">${escapeHtml(payload.organize_defaults.raw_notes)}</textarea></div>
-            <div class="field"><label>What should carry forward</label><textarea name="synthesized_summary">${escapeHtml(payload.organize_defaults.synthesized_summary)}</textarea></div>
-            <div class="field"><label>Themes</label><textarea name="themes">knowledge_indexing\nhandoff_governance</textarea></div>
-            <div class="field"><label>Decision ids</label><textarea name="decision_ids"></textarea></div>
-            <div class="field"><label>Adoption status</label><input type="text" name="adoption_status" value="proposed" /></div>
-            <div class="field"><label>Reliability</label><input type="text" name="reliability" value="medium" /></div>
-            <div class="field"><label>Relevance</label><input type="text" name="relevance" value="high" /></div>
-            <div class="actions"><button type="submit">Organize Materials</button></div>
-          </form>
-          <details><summary>Organize many materials at once</summary><form class="form-grid" data-organize-batch="${projectId}" style="margin-top:12px"><div class="field"><label>Batch payload</label><textarea name="batch_payload">${escapeHtml(payload.organize_defaults.batch_payload)}</textarea></div><div class="actions"><button type="submit">Organize Many Materials</button></div></form></details>
-        </section>
-      </article>
-      <aside class="grid">
-        <section class="panel"><div class="eyebrow">Evolution Feed</div><div class="list">${payload.evolution_feed.map((item) => `<div class="result-block"><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.summary)}</p><p class="microcopy">${escapeHtml(item.source_family)} | ${escapeHtml(item.entry_kind)} | ${escapeHtml(item.adoption_status)}</p></div>`).join("")}</div></section>
-        <section class="panel"><div class="eyebrow">Grouped Materials</div>${Object.keys(payload.grouped_views).length ? Object.entries(payload.grouped_views).map(([group, items]) => `<div class="list-item"><strong>${escapeHtml(group)}</strong><p class="muted">${items.map((item) => escapeHtml(item.title)).join("<br />")}</p></div>`).join("") : `<div class="empty">No materials match the current filters.</div>`}</section>
-      </aside>
-    </section>
-  `;
-}
-
-async function renderTasks(projectId) {
-  const { payload } = await apiFetch(`/api/app/projects/${projectId}/tasks`);
-  const modeUi = getModeUi(payload.project_mode);
-  return `
-    <section class="hero">
-      <div class="eyebrow">Work Board</div>
-      <h1>Work items for ${escapeHtml(projectId)}</h1>
-      ${statline([
-        `Mode: ${payload.project_mode}`,
-        `Attraction: ${payload.attraction_focus}`,
-        `Planned: ${payload.counts.planned}`,
-        `Active: ${payload.counts.active}`,
-        `Waiting: ${payload.counts.waiting_confirmation}`,
-        `Completed: ${payload.counts.completed}`,
-      ])}
-    </section>
-    <section class="panel">
-      <div class="eyebrow">${escapeHtml(modeUi.label)}</div>
-      <h2>${escapeHtml(modeUi.kicker)}</h2>
-      <p class="muted">${escapeHtml(modeUi.narrative)}</p>
-    </section>
-    <section class="panel">
-      <div class="eyebrow">What Matters Most Right Now</div>
-      ${chips(payload.execution_priority)}
-    </section>
-    <section class="panel">
-      <div class="eyebrow">Task Board</div>
-      <div class="list">${payload.task_tree.map((task) => `<div class="result-block"><strong>${escapeHtml(task.title)}</strong><p class="microcopy">${escapeHtml(task.task_id)} | ${escapeHtml(task.status)} | ${escapeHtml(task.owner_role)} | Priority ${task.priority}</p>${task.success_criteria?.length ? `<p>Success: ${task.success_criteria.map(escapeHtml).join(", ")}</p>` : ""}${task.blocked_reason ? `<p>Blocked: ${escapeHtml(task.blocked_reason)}</p>` : ""}</div>`).join("")}</div>
-    </section>
-  `;
-}
-
-async function renderWorkflow(projectId) {
-  const { payload } = await apiFetch(`/api/app/projects/${projectId}/workflow`);
-  return `
-    <section class="hero">
-      <div class="eyebrow">Workflow Graph</div>
-      <h1>Workflow for ${escapeHtml(projectId)}</h1>
-      ${statline([`Attraction focus: ${payload.attraction_focus}`])}
-    </section>
-    <section class="grid grid-2">
-      <section class="panel"><div class="eyebrow">Stages</div><div class="list">${payload.workflow_blueprint.stages.map((stage) => `<div class="result-block"><strong>${escapeHtml(stage.role_name)}</strong><p class="microcopy">${escapeHtml(stage.stage_id)} | ${escapeHtml(stage.handoff_policy)}</p><p>${escapeHtml(stage.objective)}</p></div>`).join("")}</div></section>
-      <section class="panel"><div class="eyebrow">Page Flow</div>${chips(payload.workflow_blueprint.page_flow)}<div class="list" style="margin-top:16px">${payload.governance_gates.map((item) => `<div class="result-block"><strong>Confirm Gate</strong><p>${escapeHtml(item)}</p></div>`).join("")}</div></section>
-    </section>
-    <section class="panel"><div class="eyebrow">Role Transition Edges</div><div class="list">${payload.workflow_graph.edges.map((edge) => `<div class="result-block"><strong>${escapeHtml(edge.from_node)} -> ${escapeHtml(edge.to_node)}</strong><p class="microcopy">Condition: ${escapeHtml(edge.condition)}</p></div>`).join("")}</div></section>
-  `;
-}
-
-async function renderDecisions(projectId) {
-  const { payload } = await apiFetch(`/api/app/projects/${projectId}/decisions`);
-  return `
-    <section class="hero">
-      <div class="eyebrow">Decision Registry</div>
-      <h1>Decisions for ${escapeHtml(projectId)}</h1>
-      <p class="lede">Track decision status, rationale, and supporting research from one governance surface.</p>
-    </section>
-    <section class="panel">
-      <div class="list">
-        ${payload.decisions.map((item) => `<div class="result-block"><strong>${escapeHtml(item.title)}</strong><p class="microcopy">${escapeHtml(item.decision_id)} | ${escapeHtml(item.status)}</p><p>${escapeHtml(item.rationale)}</p><p class="microcopy">${item.supporting_knowledge.length ? item.supporting_knowledge.map((support) => `${escapeHtml(support.entry_kind)} | ${escapeHtml(support.title)}`).join("<br />") : "No linked research items yet."}</p><form class="actions" data-update-decision="${projectId}" data-decision="${item.decision_id}"><select name="status">${["proposed", "adopted", "rejected", "deferred"].map((status) => `<option value="${status}" ${item.status === status ? "selected" : ""}>${status}</option>`).join("")}</select><button type="submit">Update Decision Status</button></form></div>`).join("")}
-      </div>
-    </section>
-  `;
-}
-
-function parseBatchPayload(projectId, batchPayload) {
-  const packs = [];
-  let current = {};
-  for (const rawLine of batchPayload.split("\n")) {
-    const line = rawLine.trim();
-    if (!line) {
-      if (Object.keys(current).length) {
-        packs.push(normalizePack(projectId, current));
-        current = {};
-      }
-      continue;
+  function activateMode(card, preserveContent = false) {
+    modeCards.forEach((item) => item.classList.toggle("active", item === card));
+    hiddenMode.value = card.dataset.modePreset || "delivery";
+    if (!preserveContent) {
+      goalInput.value = card.dataset.goal || "";
+      promptInput.value = card.dataset.prompt || "";
     }
-    if (!line.includes(":")) {
-      continue;
-    }
-    const [key, ...rest] = line.split(":");
-    current[key.trim()] = rest.join(":").trim();
-  }
-  if (Object.keys(current).length) {
-    packs.push(normalizePack(projectId, current));
-  }
-  return packs;
-}
-
-function normalizePack(projectId, data) {
-  return {
-    project_id: projectId,
-    pack_title: data.pack_title || "Batch pack",
-    source_family: data.source_family || "workflow_handoff_methods",
-    source_ref: data.source_ref || "batch-input",
-    raw_notes: data.raw_notes || "",
-    synthesized_summary: data.synthesized_summary || "",
-    themes: String(data.themes || "").split(",").map((item) => item.trim()).filter(Boolean),
-    decision_ids: String(data.decision_ids || "").split(",").map((item) => item.trim()).filter(Boolean),
-    adoption_status: data.adoption_status || "proposed",
-    reliability: data.reliability || "medium",
-    relevance: data.relevance || "high",
-  };
-}
-
-function bindForms() {
-  const bootstrapForm = document.getElementById("bootstrap-form");
-  if (bootstrapForm) {
-    const applyModePreset = (button) => {
-      document.querySelectorAll("[data-mode-preset]").forEach((item) => item.classList.remove("active"));
-      button.classList.add("active");
-      bootstrapForm.preferred_project_mode.value = button.dataset.modePreset || "delivery";
-      bootstrapForm.goal.value = button.dataset.goal || bootstrapForm.goal.value;
-      bootstrapForm.initial_prompt.value = button.dataset.prompt || bootstrapForm.initial_prompt.value;
-    };
-    document.querySelectorAll("[data-mode-preset]").forEach((button) => {
-      button.addEventListener("click", () => applyModePreset(button));
-    });
-    const demoButton = document.getElementById("landing-demo-link");
-    demoButton?.addEventListener("click", () => {
-      const activePreset = document.querySelector("[data-mode-preset].active");
-      if (activePreset) {
-        applyModePreset(activePreset);
-      }
-      bootstrapForm.project_name.value = "OpenFlow Demo Workspace";
-    });
-    bootstrapForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const values = Object.fromEntries(new FormData(bootstrapForm).entries());
-      const payload = await apiFetch("/projects/bootstrap", { method: "POST", body: JSON.stringify(values) });
-      navigate(`/app/projects/${payload.project_id}/welcome`);
-    });
   }
 
-  document.querySelectorAll("[data-first-step]").forEach((form) => {
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const projectId = form.dataset.firstStep;
-      const values = Object.fromEntries(new FormData(form).entries());
-      const payload = await apiFetch("/sessions", {
-        method: "POST",
-        body: JSON.stringify({
-          project_id: projectId,
-          role_name: values.role_name,
-          objective: values.objective,
-          input_files: splitLines(values.input_files),
-        }),
-      });
-      navigate(`/app/projects/${projectId}/sessions/${payload.session_id}`);
-    });
+  modeCards.forEach((card) => {
+    card.addEventListener("click", () => activateMode(card));
   });
+
+  const demoButton = document.getElementById("landing-demo-link");
+  if (demoButton) {
+    demoButton.addEventListener("click", () => {
+      const activeCard = modeCards.find((card) => card.classList.contains("active")) || modeCards[0];
+      if (activeCard) {
+        activateMode(activeCard);
+      }
+      form.querySelector('input[name="project_name"]').value = "OpenFlow Workspace";
+    });
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const submitButton = form.querySelector('button[type="submit"]');
+    submitButton.disabled = true;
+    try {
+      const payload = {
+        project_name: form.project_name.value.trim(),
+        goal: form.goal.value.trim(),
+        initial_prompt: form.initial_prompt.value.trim(),
+        preferred_project_mode: hiddenMode.value,
+      };
+      const response = await apiFetch("/projects/bootstrap", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      setFlash("success", "Workspace created. OpenFlow is now using the new two-surface layout.");
+      navigate(`/app/projects/${response.project_id}`);
+    } catch (error) {
+      setFlash("error", error.message || "Could not create the workspace.");
+      render();
+    } finally {
+      submitButton.disabled = false;
+    }
+  });
+}
+
+function bindWorkspaceActions(projectId) {
+  const startForm = document.querySelector("[data-start-session]");
+  if (startForm) {
+    startForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const button = form.querySelector('button[type="submit"]');
+      button.disabled = true;
+      try {
+        await apiFetch("/sessions", {
+          method: "POST",
+          body: JSON.stringify({
+            project_id: projectId,
+            role_name: form.role_name.value,
+            objective: form.objective.value,
+            input_files: splitLines(form.input_files.value),
+          }),
+        });
+        setFlash("success", "The next work package has been started.");
+        render();
+      } catch (error) {
+        setFlash("error", error.message || "Could not start the next work package.");
+        render();
+      } finally {
+        button.disabled = false;
+      }
+    });
+  }
+
+  const chatForm = document.getElementById("chat-message-form");
+  if (chatForm) {
+    chatForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = chatForm.querySelector('button[type="submit"]');
+      button.disabled = true;
+      try {
+        const result = await apiFetch(`/api/app/projects/${projectId}/chat/messages`, {
+          method: "POST",
+          body: JSON.stringify({
+            project_id: projectId,
+            session_id: chatForm.session_id.value || null,
+            message: chatForm.message.value,
+            mode: chatForm.mode.value,
+            action: chatForm.action.value,
+          }),
+        });
+        setFlash("success", result.assistant_message || "The current session has been updated.");
+        appRoot.innerHTML = renderWorkspace(result.updated_chat_workspace, window.location.pathname);
+        bindForms(projectId);
+      } catch (error) {
+        setFlash("error", error.message || "Could not send the message to the current session.");
+        render();
+      } finally {
+        button.disabled = false;
+      }
+    });
+  }
 
   document.querySelectorAll("[data-advance-handoff]").forEach((button) => {
     button.addEventListener("click", async () => {
-      const handoffId = button.dataset.advanceHandoff;
-      const projectId = button.dataset.project;
-      const payload = await apiFetch(`/handoffs/${handoffId}/advance`, { method: "POST", body: "{}" });
-      if (payload.status === "advanced") {
-        navigate(`/app/projects/${projectId}/sessions/${payload.session.session_id}`);
-      } else {
-        navigate(`/app/projects/${projectId}`);
+      button.disabled = true;
+      try {
+        await apiFetch(`/handoffs/${button.dataset.advanceHandoff}/advance`, { method: "POST" });
+        setFlash("success", "The latest handoff has been advanced.");
+        render();
+      } catch (error) {
+        setFlash("error", error.message || "Could not advance the handoff.");
+        render();
+      } finally {
+        button.disabled = false;
       }
     });
   });
@@ -924,149 +942,115 @@ function bindForms() {
   document.querySelectorAll("[data-review-handoff]").forEach((form) => {
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
-      const action = event.submitter?.value || "approve";
-      const handoffId = form.dataset.reviewHandoff;
-      const projectId = form.dataset.project;
-      const sessionId = form.dataset.session;
-      const note = new FormData(form).get("note");
-      await apiFetch(`/handoffs/${handoffId}/review`, {
-        method: "POST",
-        body: JSON.stringify({ action, note }),
-      });
-      navigate(sessionId ? `/app/projects/${projectId}/sessions/${sessionId}` : `/app/projects/${projectId}`);
+      const submitter = event.submitter;
+      if (submitter) {
+        submitter.disabled = true;
+      }
+      try {
+        await apiFetch(`/handoffs/${form.dataset.reviewHandoff}/review`, {
+          method: "POST",
+          body: JSON.stringify({
+            action: submitter?.value || "approve",
+            note: form.note.value,
+          }),
+        });
+        setFlash("success", "The handoff review has been saved.");
+        render();
+      } catch (error) {
+        setFlash("error", error.message || "Could not save the review.");
+        render();
+      } finally {
+        if (submitter) {
+          submitter.disabled = false;
+        }
+      }
     });
   });
 
   document.querySelectorAll("[data-complete-session]").forEach((form) => {
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
-      const sessionId = form.dataset.completeSession;
-      const projectId = form.dataset.project;
-      const values = Object.fromEntries(new FormData(form).entries());
-      await apiFetch(`/sessions/${sessionId}/complete`, {
-        method: "POST",
-        body: JSON.stringify({
-          session_summary: values.session_summary,
-          next_role_recommendation: values.next_role_recommendation,
-          next_role_reason: values.next_role_reason,
-          required_input_files: splitLines(values.required_input_files),
-          success_criteria: splitLines(values.success_criteria),
-          risks: splitLines(values.risks),
-          task_status_changes: splitLines(values.task_status_changes),
-          review_outcome: values.review_outcome || null,
-          acceptance_status: values.acceptance_status || null,
-          followup_actions: splitLines(values.followup_actions),
-          transcript_note: values.transcript_note || null,
-        }),
-      });
-      navigate(`/app/projects/${projectId}/sessions/${sessionId}`);
-    });
-  });
-
-  document.querySelectorAll("[data-knowledge-filter]").forEach((form) => {
-    form.addEventListener("submit", (event) => {
-      event.preventDefault();
-      const projectId = form.dataset.knowledgeFilter;
-      const values = new FormData(form);
-      const params = new URLSearchParams();
-      for (const [key, value] of values.entries()) {
-        if (value) {
-          params.set(key, value);
-        }
+      const button = form.querySelector('button[type="submit"]');
+      button.disabled = true;
+      try {
+        await apiFetch(`/sessions/${form.dataset.completeSession}/complete`, {
+          method: "POST",
+          body: JSON.stringify({
+            session_summary: form.session_summary.value,
+            next_role_recommendation: form.next_role_recommendation.value,
+            next_role_reason: form.next_role_reason.value,
+            required_input_files: splitLines(form.required_input_files.value),
+            success_criteria: splitLines(form.success_criteria.value),
+            risks: splitLines(form.risks.value),
+            transcript_note: form.transcript_note.value,
+            followup_actions: splitLines(form.followup_actions.value),
+            task_status_changes: splitLines(form.task_status_changes.value),
+            review_outcome: form.review_outcome.value,
+            acceptance_status: form.acceptance_status.value,
+          }),
+        });
+        setFlash("success", "The current role has been completed and the next handoff was saved.");
+        render();
+      } catch (error) {
+        setFlash("error", error.message || "Could not complete the current role.");
+        render();
+      } finally {
+        button.disabled = false;
       }
-      if (!values.get("linked_only")) {
-        params.delete("linked_only");
-      }
-      navigate(`/app/projects/${projectId}/knowledge${params.toString() ? `?${params.toString()}` : ""}`);
-    });
-  });
-
-  document.querySelectorAll("[data-organize-materials]").forEach((form) => {
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const projectId = form.dataset.organizeMaterials;
-      const values = Object.fromEntries(new FormData(form).entries());
-      await apiFetch("/research-packs", {
-        method: "POST",
-        body: JSON.stringify({
-          project_id: projectId,
-          pack_title: values.pack_title,
-          source_family: values.source_family,
-          source_ref: values.source_ref,
-          raw_notes: values.raw_notes,
-          synthesized_summary: values.synthesized_summary,
-          themes: splitLines(values.themes),
-          decision_ids: splitLines(values.decision_ids),
-          adoption_status: values.adoption_status,
-          reliability: values.reliability,
-          relevance: values.relevance,
-        }),
-      });
-      navigate(`/app/projects/${projectId}/knowledge`);
-    });
-  });
-
-  document.querySelectorAll("[data-organize-batch]").forEach((form) => {
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const projectId = form.dataset.organizeBatch;
-      const batchPayload = new FormData(form).get("batch_payload");
-      await apiFetch("/research-packs/batch", {
-        method: "POST",
-        body: JSON.stringify({ project_id: projectId, packs: parseBatchPayload(projectId, String(batchPayload || "")) }),
-      });
-      navigate(`/app/projects/${projectId}/knowledge`);
-    });
-  });
-
-  document.querySelectorAll("[data-update-decision]").forEach((form) => {
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const projectId = form.dataset.updateDecision;
-      const decisionId = form.dataset.decision;
-      const status = new FormData(form).get("status");
-      await apiFetch(`/projects/${projectId}/decisions/${decisionId}`, {
-        method: "POST",
-        body: JSON.stringify({ status }),
-      });
-      navigate(`/app/projects/${projectId}/decisions`);
     });
   });
 }
 
+function bindForms(projectId = "") {
+  bindLandingInteractions();
+  if (projectId) {
+    bindWorkspaceActions(projectId);
+  }
+}
+
+async function handleRenderPath() {
+  const pathname = window.location.pathname.replace(/\/+$/, "") || "/app";
+  if (pathname === "/app") {
+    return renderLanding();
+  }
+
+  const match = pathname.match(/^\/app\/projects\/([^/]+)(?:\/(.*))?$/);
+  if (!match) {
+    return shell(`
+      ${renderFlash()}
+      <section class="panel error-panel">
+        <div class="eyebrow">Not Found</div>
+        <h2>This app route does not exist</h2>
+        <p>OpenFlow now uses only Chat Workspace and System Config as formal surfaces.</p>
+        <div class="actions">
+          <a class="button" href="/app" data-nav>Open landing</a>
+        </div>
+      </section>
+    `);
+  }
+
+  const projectId = decodeURIComponent(match[1]);
+  const tail = match[2] || "";
+  const useConfig = tail === "config" || tail.startsWith("workflow") || tail.startsWith("decisions");
+  renderLoading(projectId, useConfig ? "config" : "workspace");
+  if (useConfig) {
+    const config = await apiFetch(`/api/app/projects/${projectId}/config`);
+    return renderSystemConfig(config, pathname);
+  }
+  const chat = await apiFetch(`/api/app/projects/${projectId}/chat`);
+  return renderWorkspace(chat, pathname);
+}
+
 async function render() {
-  appRoot.innerHTML = shell(`<section class="hero"><p class="muted">Loading OpenFlow App...</p></section>`);
   try {
-    const path = window.location.pathname;
-    if (path === "/app" || path === "/app/") {
-      appRoot.innerHTML = shell(await renderLanding());
-    } else {
-      const matchers = [
-        [/^\/app\/projects\/([^/]+)\/welcome$/, async (match) => shell(await renderWelcome(match[1]), match[1])],
-        [/^\/app\/projects\/([^/]+)$/, async (match) => shell(await renderProject(match[1]), match[1])],
-        [/^\/app\/projects\/([^/]+)\/sessions\/([^/]+)$/, async (match) => shell(await renderSession(match[1], match[2]), match[1])],
-        [/^\/app\/projects\/([^/]+)\/knowledge$/, async (match) => shell(await renderKnowledge(match[1]), match[1])],
-        [/^\/app\/projects\/([^/]+)\/tasks$/, async (match) => shell(await renderTasks(match[1]), match[1])],
-        [/^\/app\/projects\/([^/]+)\/workflow$/, async (match) => shell(await renderWorkflow(match[1]), match[1])],
-        [/^\/app\/projects\/([^/]+)\/decisions$/, async (match) => shell(await renderDecisions(match[1]), match[1])],
-      ];
-      let handled = false;
-      for (const [regex, renderer] of matchers) {
-        const match = path.match(regex);
-        if (!match) {
-          continue;
-        }
-        appRoot.innerHTML = await renderer(match);
-        handled = true;
-        break;
-      }
-      if (!handled) {
-        appRoot.innerHTML = shell(`<section class="hero"><div class="eyebrow">Not Found</div><h1>This frontend route does not exist.</h1><p class="muted">Return to the new app home or open the legacy pages.</p><div class="actions"><a class="button" href="/app" data-nav>Back To Home</a></div></section>`);
-      }
-    }
-    bindForms();
+    const html = await handleRenderPath();
+    appRoot.innerHTML = html;
+    const match = window.location.pathname.match(/^\/app\/projects\/([^/]+)/);
+    bindForms(match ? decodeURIComponent(match[1]) : "");
+    window.scrollTo({ top: 0, behavior: "auto" });
   } catch (error) {
-    appRoot.innerHTML = shell(`<section class="hero"><div class="eyebrow">Error</div><h1>The frontend shell could not load this page.</h1><p class="muted">${escapeHtml(error.message)}</p></section>`);
+    const match = window.location.pathname.match(/^\/app\/projects\/([^/]+)/);
+    renderError(error, match ? decodeURIComponent(match[1]) : "", window.location.pathname.includes("/config") ? "config" : "workspace");
   }
 }
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -230,10 +230,12 @@ class GoalModel(BaseModel):
 class CognitiveState(BaseModel):
     project_id: str
     validated_facts: List[str] = Field(default_factory=list)
+    inferred_facts: List[str] = Field(default_factory=list)
     active_assumptions: List[str] = Field(default_factory=list)
     open_questions: List[str] = Field(default_factory=list)
     conflicts: List[str] = Field(default_factory=list)
     current_gaps: List[str] = Field(default_factory=list)
+    evidence_refs: List[str] = Field(default_factory=list)
     focus_now: str = "Clarify the next safe step."
 
 
@@ -253,6 +255,8 @@ class PlanLayers(BaseModel):
     phases: List[PlanStep] = Field(default_factory=list)
     milestones: List[PlanStep] = Field(default_factory=list)
     node_plan: List[PlanStep] = Field(default_factory=list)
+    phase_status: List[str] = Field(default_factory=list)
+    last_rewritten_by: Optional[str] = None
 
 
 class TaskGraphNode(BaseModel):
@@ -260,12 +264,16 @@ class TaskGraphNode(BaseModel):
     task_id: str
     title: str
     phase: str
+    node_type: str = "execution"
     intent: str
     owner_role: str
     dependency_nodes: List[str] = Field(default_factory=list)
     blocking_conditions: List[str] = Field(default_factory=list)
     completion_conditions: List[str] = Field(default_factory=list)
     rollback_conditions: List[str] = Field(default_factory=list)
+    parallelizable: bool = False
+    needs_human_confirm: bool = False
+    needs_material_refresh: bool = False
     status: str = "planned"
 
 
@@ -273,12 +281,16 @@ class TaskGraphV2(BaseModel):
     project_id: str
     nodes: List[TaskGraphNode] = Field(default_factory=list)
     edges: List[WorkflowEdge] = Field(default_factory=list)
+    replan_sources: List[str] = Field(default_factory=list)
 
 
 class RoleProfile(BaseModel):
     role_name: str
     mission: str
     mindset: str
+    profile_source: str = "registry"
+    dynamic_profile: bool = False
+    authority_scope: List[str] = Field(default_factory=list)
     output_contract: List[str] = Field(default_factory=list)
     focus_points: List[str] = Field(default_factory=list)
     guardrails: List[str] = Field(default_factory=list)
@@ -290,6 +302,7 @@ class CapabilityRegistryEntry(BaseModel):
     entry_type: str
     name: str
     purpose: str
+    template_type: str = "default"
     applies_to: List[str] = Field(default_factory=list)
     activation_rules: List[str] = Field(default_factory=list)
 
@@ -308,6 +321,11 @@ class NodeCapabilityMapEntry(BaseModel):
     memory_write_policy: str = "append_structured_memory"
     verification_policy: List[str] = Field(default_factory=list)
     observability_policy: List[str] = Field(default_factory=list)
+    resolution_source: str = "registry"
+    precedence: int = 100
+    fallback_roles: List[str] = Field(default_factory=list)
+    dynamic_override: bool = False
+    session_factory_policy: List[str] = Field(default_factory=list)
 
 
 class ExecutionCapsule(BaseModel):
@@ -325,6 +343,11 @@ class ExecutionCapsule(BaseModel):
     memory_pack_refs: List[str] = Field(default_factory=list)
     verification_policy: List[str] = Field(default_factory=list)
     observability_policy: List[str] = Field(default_factory=list)
+    session_config_payload: dict[str, Any] = Field(default_factory=dict)
+    launch_readiness: bool = False
+    missing_dependencies: List[str] = Field(default_factory=list)
+    audit_requirements: List[str] = Field(default_factory=list)
+    source_resolution: str = "registry"
 
 
 class MemoryPack(BaseModel):
@@ -334,6 +357,7 @@ class MemoryPack(BaseModel):
     summary: str
     refs: List[str] = Field(default_factory=list)
     keywords: List[str] = Field(default_factory=list)
+    payload: dict[str, Any] = Field(default_factory=dict)
 
 
 class ObservabilityEvent(BaseModel):
@@ -352,6 +376,16 @@ class ObservabilitySnapshot(BaseModel):
     current_role: Optional[str] = None
     progress_percent: int = 0
     recent_events: List[ObservabilityEvent] = Field(default_factory=list)
+    current_status: str = "active"
+
+
+class RewriteIntent(BaseModel):
+    target_type: str
+    target_id: str
+    action: str
+    reason: str
+    risk_level: str = "medium"
+    auto_applied: bool = False
 
 
 class ImprovementRecord(BaseModel):
@@ -361,3 +395,56 @@ class ImprovementRecord(BaseModel):
     plan_updates: List[str] = Field(default_factory=list)
     mapping_updates: List[str] = Field(default_factory=list)
     next_focus: List[str] = Field(default_factory=list)
+    rewrite_intents: List[RewriteIntent] = Field(default_factory=list)
+
+
+class MultiUserPrewire(BaseModel):
+    actor_id_field: str = "actor_id"
+    actor_type_field: str = "actor_type"
+    attribution_enabled: bool = True
+
+
+class ExportPrewire(BaseModel):
+    export_job_schema: str = "export_job_v1"
+    artifact_bundle_schema: str = "artifact_bundle_v1"
+    supported_targets: List[str] = Field(default_factory=lambda: ["report", "plan", "stakeholder_summary"])
+
+
+class GovernancePrewire(BaseModel):
+    policy_schema: str = "governance_policy_v1"
+    supports_multi_step_approval: bool = True
+    approval_statuses: List[str] = Field(default_factory=lambda: ["pending", "approved", "changes_requested", "replan_required"])
+
+
+class AutoLaunchPrewire(BaseModel):
+    policy_schema: str = "auto_launch_policy_v1"
+    simulation_schema: str = "auto_launch_simulation_v1"
+    supports_boundary_checks: bool = True
+
+
+class ExecutionResult(BaseModel):
+    status: str
+    summary: str
+    structured_outputs: dict[str, Any] = Field(default_factory=dict)
+    recommended_handoff: dict[str, Any] = Field(default_factory=dict)
+    memory_updates: List[dict[str, Any]] = Field(default_factory=list)
+    observability_event: dict[str, Any] = Field(default_factory=dict)
+    rewrite_intents: List[RewriteIntent] = Field(default_factory=list)
+
+
+class ChatMessageRequest(BaseModel):
+    project_id: str
+    session_id: Optional[str] = None
+    message: str
+    mode: str = "simulated"
+    action: str = "continue"
+
+
+class ChatMessageResponse(BaseModel):
+    project_id: str
+    session_id: str
+    node_id: str
+    mode: str
+    assistant_message: str
+    execution_result: ExecutionResult
+    updated_chat_workspace: dict[str, Any] = Field(default_factory=dict)

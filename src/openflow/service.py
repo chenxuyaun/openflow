@@ -6,6 +6,7 @@ from pathlib import Path
 from openflow.repository import OpenFlowRepository
 from openflow.models import (
     BootstrapRequest,
+    ChatMessageRequest,
     DecisionUpdateRequest,
     DecisionRecord,
     HandoffRecord,
@@ -282,3 +283,51 @@ def get_project_session_detail(project_id: str, session_id: str) -> dict[str, ob
 
 def get_project_timeline(project_id: str) -> dict[str, object]:
     return repository.get_project_timeline(project_id)
+
+
+def get_system_graph(project_id: str) -> dict[str, object]:
+    return repository.get_system_graph(project_id)
+
+
+def get_node_capsule(project_id: str, node_id: str) -> dict[str, object]:
+    return repository.get_node_capsule(project_id, node_id)
+
+
+def get_memory_index(project_id: str) -> dict[str, object]:
+    return repository.get_memory_index(project_id)
+
+
+def get_observability(project_id: str) -> dict[str, object]:
+    return repository.get_observability(project_id)
+
+
+def get_improvement_log(project_id: str) -> dict[str, object]:
+    return repository.get_improvement_log(project_id)
+
+
+def get_role_profiles(project_id: str) -> dict[str, object]:
+    return repository.get_role_profiles(project_id)
+
+
+def get_capabilities(project_id: str) -> dict[str, object]:
+    return repository.get_capabilities(project_id)
+
+
+def get_mappings(project_id: str) -> dict[str, object]:
+    return repository.get_mappings(project_id)
+
+
+def get_session_factory_preview(project_id: str, node_id: str) -> dict[str, object]:
+    return repository.get_session_factory_preview(project_id, node_id)
+
+
+def get_chat_workspace(project_id: str) -> dict[str, object]:
+    return repository.get_chat_workspace(project_id)
+
+
+def get_config_workspace(project_id: str) -> dict[str, object]:
+    return repository.get_config_workspace(project_id)
+
+
+def post_chat_message(project_id: str, request: ChatMessageRequest) -> dict[str, object]:
+    return repository.post_chat_message(project_id, request)

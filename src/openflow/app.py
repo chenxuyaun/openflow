@@ -28,6 +28,18 @@ from openflow.service import (
     get_project_tasks,
     get_project_timeline,
     get_project_workflow,
+    get_system_graph,
+    get_node_capsule,
+    get_memory_index,
+    get_observability,
+    get_improvement_log,
+    get_role_profiles,
+    get_capabilities,
+    get_mappings,
+    get_session_factory_preview,
+    get_chat_workspace,
+    get_config_workspace,
+    post_chat_message,
     ingest_project_research_pack_batch,
     ingest_project_research_pack,
     review_project_handoff,
@@ -35,6 +47,7 @@ from openflow.service import (
 )
 from openflow.models import (
     BootstrapRequest,
+    ChatMessageRequest,
     DecisionUpdateRequest,
     HandoffReviewRequest,
     ResearchPackBatchIngestRequest,
@@ -323,6 +336,66 @@ def app_decisions(project_id: str) -> dict[str, object]:
         "project_id": project_id,
         "payload": get_project_decisions(project_id),
     }
+
+
+@app.get("/api/app/projects/{project_id}/chat")
+def app_chat_workspace(project_id: str) -> dict[str, object]:
+    return get_chat_workspace(project_id)
+
+
+@app.post("/api/app/projects/{project_id}/chat/messages")
+def app_chat_message(project_id: str, request: ChatMessageRequest) -> dict[str, object]:
+    return post_chat_message(project_id, request)
+
+
+@app.get("/api/app/projects/{project_id}/config")
+def app_config_workspace(project_id: str) -> dict[str, object]:
+    return get_config_workspace(project_id)
+
+
+@app.get("/api/system/projects/{project_id}/graph")
+def system_graph(project_id: str) -> dict[str, object]:
+    return get_system_graph(project_id)
+
+
+@app.get("/api/system/projects/{project_id}/nodes/{node_id}/capsule")
+def system_node_capsule(project_id: str, node_id: str) -> dict[str, object]:
+    return get_node_capsule(project_id, node_id)
+
+
+@app.get("/api/system/projects/{project_id}/memory")
+def system_memory(project_id: str) -> dict[str, object]:
+    return get_memory_index(project_id)
+
+
+@app.get("/api/system/projects/{project_id}/observability")
+def system_observability(project_id: str) -> dict[str, object]:
+    return get_observability(project_id)
+
+
+@app.get("/api/system/projects/{project_id}/improvement")
+def system_improvement(project_id: str) -> dict[str, object]:
+    return get_improvement_log(project_id)
+
+
+@app.get("/api/system/projects/{project_id}/roles")
+def system_roles(project_id: str) -> dict[str, object]:
+    return get_role_profiles(project_id)
+
+
+@app.get("/api/system/projects/{project_id}/capabilities")
+def system_capabilities(project_id: str) -> dict[str, object]:
+    return get_capabilities(project_id)
+
+
+@app.get("/api/system/projects/{project_id}/mappings")
+def system_mappings(project_id: str) -> dict[str, object]:
+    return get_mappings(project_id)
+
+
+@app.get("/api/system/projects/{project_id}/session-factory/{node_id}")
+def system_session_factory(project_id: str, node_id: str) -> dict[str, object]:
+    return get_session_factory_preview(project_id, node_id)
 
 
 @app.post("/projects/bootstrap")
