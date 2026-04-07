@@ -2,9 +2,9 @@
 {% block content %}
 <section class="hero">
   <div class="eyebrow">AI Collaboration Workspace</div>
-  <h1>Describe what you want to finish. OpenFlow will split the work, preserve the progress, and guide the next step.</h1>
+  <h1>Describe what you want to finish. OpenFlow will keep the materials organized, preserve the progress, and suggest the next step.</h1>
   <p class="muted">
-    OpenFlow helps research, planning, writing, delivery, and review continue across fresh AI sessions without losing direction.
+    OpenFlow helps research, planning, writing, and delivery continue across fresh AI sessions without losing direction.
   </p>
   <div class="statline">
     {% for point in proof_points %}
@@ -15,23 +15,26 @@
 
 <section class="grid">
   <article class="panel">
-    <h2>What This Feels Like</h2>
-    <p>Start from a messy goal. OpenFlow turns it into clear work stages, shared materials, handoffs, and next-step guidance.</p>
+    <h2>Why It Feels Simple</h2>
+    <p>Start from a messy goal. OpenFlow turns it into a clear target, organized materials, visible progress, and a suggested next step.</p>
     <div>
       <span class="tag">Research</span>
       <span class="tag">Writing</span>
       <span class="tag">Planning</span>
+      <span class="tag">Organization</span>
       <span class="tag">Delivery</span>
-      <span class="tag">Review</span>
     </div>
   </article>
   <article class="panel">
-    <h2>Advanced Layer</h2>
-    <p>The same workspace still exposes workflow graph, handoff, decision registry, and knowledge center for users who need deeper governance.</p>
-    <div>
-      {% for section in blueprint.demo_sections %}
-      <span class="tag">{{ section }}</span>
-      {% endfor %}
+    <h2>What OpenFlow Handles For You</h2>
+    <p>Behind the scenes, OpenFlow keeps every fresh session connected through saved materials, project records, and next-step guidance.</p>
+    <div class="list-card">
+      <strong>No lost progress</strong>
+      <p class="muted">The work can pause, restart, or change roles without starting over.</p>
+    </div>
+    <div class="list-card">
+      <strong>Shared materials stay visible</strong>
+      <p class="muted">The system keeps the important files, notes, and outcomes attached to the project.</p>
     </div>
   </article>
 </section>
@@ -50,21 +53,32 @@
   <h2>What You See First</h2>
   <div class="grid">
     <div class="list-card">
-      <strong>1. Work type is inferred</strong>
-      <p>The system reads your goal and suggests the kind of collaboration needed.</p>
+      <strong>1. A clear goal</strong>
+      <p>You start with one place to define what you want to finish.</p>
     </div>
     <div class="list-card">
-      <strong>2. Roles are translated into simple responsibilities</strong>
-      <p>You first see planners, builders, reviewers, and researchers before technical role specs.</p>
+      <strong>2. Saved materials</strong>
+      <p>You see the files, notes, and inputs the work should rely on.</p>
     </div>
     <div class="list-card">
-      <strong>3. Progress is visible</strong>
-      <p>You see what is happening now, why it is happening, and what should happen next.</p>
+      <strong>3. Current progress</strong>
+      <p>You can tell what is happening now and what has already been done.</p>
     </div>
     <div class="list-card">
-      <strong>4. Advanced controls stay available</strong>
-      <p>Workflow graph, handoff, decision registry, and governance remain available when needed.</p>
+      <strong>4. A suggested next step</strong>
+      <p>You get a clear recommendation for what should happen next.</p>
     </div>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Advanced Tools</h2>
+  <p class="muted">When you need deeper control, OpenFlow still exposes workflow graph, handoff, decision registry, and governance views.</p>
+  <div>
+    {% for section in blueprint.demo_sections %}
+    <span class="tag">{{ section }}</span>
+    {% endfor %}
+    <div>
   </div>
 </section>
 {% endblock %}

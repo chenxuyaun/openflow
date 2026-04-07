@@ -7,57 +7,33 @@
   <p class="muted">Project ID: <code>{{ project_id }}</code></p>
   <div class="statline">
     <div class="stat">Work type: {{ summary.state.project_type_label }}</div>
-    <div class="stat">Style: {{ summary.state.collaboration_style }}</div>
-    <div class="stat">Next step owner: {{ summary.next_role or "n/a" }}</div>
-    <div class="stat">Latest review: {{ summary.governance.latest_review }}</div>
+    <div class="stat">Current progress: {{ summary.governance.latest_review }}</div>
+    <div class="stat">Suggested next owner: {{ summary.next_role or "n/a" }}</div>
+    <div class="stat">Current style: {{ summary.state.collaboration_style }}</div>
   </div>
-  <p>
-    <a href="/projects/{{ project_id }}/knowledge">Materials And Insights</a> |
-    <a href="/projects/{{ project_id }}/decisions">Decision Registry</a> |
-    <a href="/projects/{{ project_id }}/workflow">Advanced Workflow</a> |
-    <a href="/projects/{{ project_id }}/tasks">Work Board (Task Board)</a>
-  </p>
   {% if handoff_status == "waiting_confirmation" %}
-  <p class="muted">Confirm gate reached. This handoff is waiting for confirmation.</p>
+  <p class="muted">A protected next step is waiting for approval in the advanced tools area.</p>
   {% endif %}
-  {% if summary.governance.confirm_waiting %}
-  <p class="muted">Governance status: the recommended next role is behind a confirm gate.</p>
+  {% if handoff_status and handoff_status != "waiting_confirmation" %}
+  <p class="muted">Latest advanced action: {{ handoff_status }}</p>
   {% endif %}
-{% if handoff_status and handoff_status != "waiting_confirmation" %}
-  <p class="muted">Latest governance action: {{ handoff_status }}</p>
-  {% endif %}
-</section>
-
-<section class="panel">
-  <h2>Why The Project Is Here Now</h2>
-  <div class="list-card">
-    <strong>Current state</strong>
-    <p>{{ summary.governance.why_current_state }}</p>
-    <p class="muted">Next role: {{ summary.next_role or "n/a" }}</p>
-    <p class="muted">Why next role: {{ summary.why_next_role }}</p>
-    <p class="muted">Blocked now: {{ summary.blocked_now or "No explicit block recorded." }}</p>
-  </div>
 </section>
 
 <section class="grid">
   <article class="panel">
-    <h2>Current Collaboration Setup</h2>
-    {% for item in summary.state.user_facing_roles %}
-    <span class="tag">{{ item }}</span>
-    {% endfor %}
-    <h2>Execution Priorities</h2>
-    {% for item in summary.state.execution_priority %}
+    <h2>Current Goal</h2>
     <div class="list-card">
-      <strong>{{ item }}</strong>
+      <strong>What this workspace is trying to finish</strong>
+      <p>{{ summary.project.goal }}</p>
     </div>
-    {% endfor %}
-    <h2>Research Slots</h2>
+    <h2>Available Materials</h2>
     {% for item in summary.state.research_slots %}
     <span class="tag">{{ item }}</span>
     {% endfor %}
+    <p><a href="/projects/{{ project_id }}/knowledge">Open Materials Center</a></p>
   </article>
   <article class="panel">
-    <h2>Latest Work Step</h2>
+    <h2>Current Progress</h2>
     {% if summary.latest_session %}
     <div class="list-card">
       <strong>{{ summary.latest_session.role_name }}</strong>
@@ -67,34 +43,34 @@
     {% else %}
     <p class="muted">No session exists yet.</p>
     {% endif %}
-    <h2>Latest Handoff</h2>
+    <h2>Suggested Next Step</h2>
     {% if summary.latest_handoff %}
     <div class="list-card">
       <strong>{{ summary.latest_handoff.next_role_recommendation }}</strong>
       <p class="muted">{{ summary.latest_handoff.next_role_reason }}</p>
-      <p class="muted">Acceptance: {{ summary.latest_handoff.acceptance_status or "not_set" }} | Review: {{ summary.latest_handoff.review_outcome or "not_set" }}</p>
+      <p class="muted">Why the system recommends this: {{ summary.why_next_role }}</p>
+      <p class="muted">Advanced status: {{ summary.latest_handoff.acceptance_status or "not_set" }} | Review: {{ summary.latest_handoff.review_outcome or "not_set" }}</p>
       <form method="post" action="/projects/{{ project_id }}/handoffs/{{ summary.latest_handoff.handoff_id }}/advance">
-        <p><button type="submit">Advance Handoff</button></p>
+        <p><button type="submit">Start Suggested Next Step</button></p>
       </form>
-      {% if summary.governance.confirm_waiting and summary.governance.pending_handoff_id == summary.latest_handoff.handoff_id %}
-      <form method="post" action="/projects/{{ project_id }}/handoffs/{{ summary.latest_handoff.handoff_id }}/review">
-        <p><label>Confirm gate note<br /><textarea name="note" style="width:100%;min-height:70px">Gate review note for the next role.</textarea></label></p>
-        <p>
-          <button type="submit" name="action" value="approve">Approve</button>
-          <button type="submit" name="action" value="changes_requested">Request Changes</button>
-          <button type="submit" name="action" value="replan_required">Send To Replan</button>
-        </p>
-      </form>
-      {% endif %}
     </div>
     {% else %}
-    <p class="muted">No handoff has been written yet.</p>
+    <p class="muted">No suggested next step has been written yet.</p>
     {% endif %}
   </article>
 </section>
 
 <section class="panel">
-  <h2>Work Snapshot</h2>
+  <h2>Why This Step Is Recommended</h2>
+  <div class="list-card">
+    <strong>Current state</strong>
+    <p>{{ summary.governance.why_current_state }}</p>
+    <p class="muted">Blocked now: {{ summary.blocked_now or "No explicit block recorded." }}</p>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Progress Snapshot</h2>
   {% for task in summary.state.task_tree %}
   <div class="list-card">
     <strong>{{ task.title }}</strong>
@@ -110,23 +86,37 @@
 </section>
 
 <section class="panel">
+  <h2>Advanced Workspace Tools</h2>
+  <p class="muted">Use these when you need deeper workflow, review, decision, or governance controls.</p>
+  <p>
+    <a href="/projects/{{ project_id }}/workflow">Advanced Workflow</a> |
+    <a href="/projects/{{ project_id }}/decisions">Important Decisions</a> |
+    <a href="/projects/{{ project_id }}/tasks">Work Board (Task Board)</a> |
+    <a href="/projects/{{ project_id }}/knowledge">Materials And Insights</a>
+  </p>
+  {% if summary.governance.confirm_waiting and summary.latest_handoff and summary.governance.pending_handoff_id == summary.latest_handoff.handoff_id %}
+  <div class="list-card">
+    <strong>Review-required next step</strong>
+    <p class="muted">This next step is behind a confirm gate.</p>
+    <form method="post" action="/projects/{{ project_id }}/handoffs/{{ summary.latest_handoff.handoff_id }}/review">
+      <p><label>Review note<br /><textarea name="note" style="width:100%;min-height:70px">Approve or return this next step from the advanced tools area.</textarea></label></p>
+      <p>
+        <button type="submit" name="action" value="approve">Approve</button>
+        <button type="submit" name="action" value="changes_requested">Request Changes</button>
+        <button type="submit" name="action" value="replan_required">Send To Replan</button>
+      </p>
+    </form>
+  </div>
+  {% endif %}
+</section>
+
+<section class="panel">
   <h2>Project Timeline</h2>
-  {% for event in timeline %}
+  {% for event in timeline[:3] %}
   <div class="list-card">
     <strong>{{ event.title }}</strong>
     <p>{{ event.summary }}</p>
     <p class="muted">Because: {{ event.because }}</p>
-    <p class="muted">{{ event.event_type }} | {{ event.timestamp }}</p>
-    <p><a href="{{ event.target_url }}">Open</a></p>
-  </div>
-  {% endfor %}
-</section>
-
-<section class="panel">
-  <h2>Governance Gates</h2>
-  {% for gate in summary.governance.gates %}
-  <div class="list-card">
-    <strong>{{ gate }}</strong>
   </div>
   {% endfor %}
 </section>
@@ -134,9 +124,9 @@
 <section class="panel">
   <h2>Start Another Work Step</h2>
   <form method="post" action="/projects/{{ project_id }}/sessions">
-    <p><label>Responsible role<br /><input type="text" name="role_name" style="width:100%" value="Implementation Lead" /></label></p>
-    <p><label>What should this work step accomplish?<br /><textarea name="objective" style="width:100%;min-height:100px">Implement the next project slice.</textarea></label></p>
-    <p><label>What materials should this step read first?<br /><textarea name="input_files" style="width:100%;min-height:90px">projects/{{ project_id }}/workflow_graph.json</textarea></label></p>
+    <p><label>Who should work on this next?<br /><input type="text" name="role_name" style="width:100%" value="Implementation Lead" /></label></p>
+    <p><label>What should this step accomplish?<br /><textarea name="objective" style="width:100%;min-height:100px">Implement the next project slice.</textarea></label></p>
+    <p><label>Which materials should this step read first?<br /><textarea name="input_files" style="width:100%;min-height:90px">projects/{{ project_id }}/workflow_graph.json</textarea></label></p>
     <p><button type="submit">Start Work Step</button></p>
   </form>
 </section>

@@ -176,15 +176,18 @@ def test_read_only_pages_render_real_project_data() -> None:
     landing_response = client.get("/")
     assert landing_response.status_code == 200
     assert "Describe what you want to finish" in landing_response.text
+    assert "Why It Feels Simple" in landing_response.text
 
     project_response = client.get(f"/projects/{project_id}")
     assert project_response.status_code == 200
     assert "UI Demo" in project_response.text
     assert "Workspace Overview" in project_response.text
+    assert "Current Goal" in project_response.text
+    assert "Advanced Workspace Tools" in project_response.text
 
     knowledge_response = client.get(f"/projects/{project_id}/knowledge")
     assert knowledge_response.status_code == 200
-    assert "Knowledge Center" in knowledge_response.text
+    assert "Materials Center" in knowledge_response.text
     assert "Blueprint Documents" in knowledge_response.text
 
     workflow_response = client.get(f"/projects/{project_id}/workflow")
@@ -451,7 +454,7 @@ def test_confirm_gate_review_can_approve_and_then_advance() -> None:
     project_page = client.get(f"/projects/{project_id}")
     assert project_page.status_code == 200
     assert "approved" in project_page.text
-    assert "Why The Project Is Here Now" in project_page.text
+    assert "Why This Step Is Recommended" in project_page.text
 
 
 def test_research_pack_ingest_creates_raw_and_synthesized_items() -> None:
@@ -585,9 +588,9 @@ def test_project_dashboard_shows_governance_and_task_board_link() -> None:
     project_page = client.get(f"/projects/{project_id}")
     assert project_page.status_code == 200
     assert "Task Board" in project_page.text
-    assert "Governance Gates" in project_page.text
-    assert "Execution Priorities" in project_page.text
-    assert "Why The Project Is Here Now" in project_page.text
+    assert "Advanced Workspace Tools" in project_page.text
+    assert "Suggested Next Step" in project_page.text
+    assert "Why This Step Is Recommended" in project_page.text
     assert "Work type:" in project_page.text
 
 
@@ -665,3 +668,4 @@ def test_workspace_language_appears_on_task_and_session_pages() -> None:
     assert session_page.status_code == 200
     assert "Complete Work Step" in session_page.text
     assert "Materials Used" in session_page.text
+    assert "Advanced controls" in session_page.text
