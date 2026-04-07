@@ -982,6 +982,32 @@ def test_replan_required_updates_recommendation_to_replan_role() -> None:
     assert "Research Curator" in project_page.text or "Bootstrap Strategist" in project_page.text
 
 
+def test_project_summary_includes_recommended_work_package() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Prepare the next work package from project state.",
+            "initial_prompt": "Need a clear next role, files to read, and success criteria from the recommendation layer.",
+            "project_name": "Work Package Demo",
+            "preferred_project_mode": "delivery",
+        },
+    )
+    project_id = bootstrap_response.json()["project_id"]
+
+    project_payload = client.get("/project", params={"project_id": project_id})
+    assert project_payload.status_code == 200
+    work_package = project_payload.json()["recommended_work_package"]
+
+    assert work_package["recommended_role"] == "Implementation Lead"
+    assert work_package["recommended_action"] in {"start_first_step", "start"}
+    assert "workflow_graph.json" in work_package["recommended_files"][0]
+    assert work_package["expected_output"]
+    assert work_package["success_criteria"]
+    assert work_package["confidence"] in {"medium", "high"}
+    assert work_package["ready_for_auto_advance"] is False
+    assert work_package["auto_advance_blockers"]
+
+
 def test_decision_conflict_changes_recommendation_to_review() -> None:
     bootstrap_response = client.post(
         "/projects/bootstrap",
@@ -1020,6 +1046,12 @@ def test_decision_conflict_changes_recommendation_to_review() -> None:
     assert "Review Operator" in project_page.text
     assert "deferred or rejected" in project_page.text
     assert "Conflicting decision-linked materials: 2." in project_page.text
+
+    project_payload = client.get("/project", params={"project_id": project_id})
+    work_package = project_payload.json()["recommended_work_package"]
+    assert work_package["recommended_role"] == "Review Operator"
+    assert work_package["ready_for_auto_advance"] is False
+    assert any("conflict" in item.lower() for item in work_package["blocking_items"])
 
 
 def test_governance_blocked_task_does_not_offer_direct_start() -> None:
@@ -1064,6 +1096,11 @@ def test_governance_blocked_task_does_not_offer_direct_start() -> None:
     assert "This workspace should resolve the current block before starting the next step." in project_page.text
     assert "Open Details" in project_page.text
     assert "Start Suggested Next Step" not in project_page.text
+
+    project_payload = client.get("/project", params={"project_id": project_id})
+    work_package = project_payload.json()["recommended_work_package"]
+    assert work_package["ready_for_auto_advance"] is False
+    assert any("governance review must clear this task first" in item.lower() for item in work_package["blocking_items"])
 
 
 def test_session_review_form_redirects_back_with_feedback() -> None:
@@ -1184,7 +1221,9 @@ def test_app_shell_and_landing_api_render_parallel_frontend() -> None:
     data = landing_payload.json()
 
     assert data["title"] == "OpenFlow"
+    assert data["defaults"]["preferred_project_mode"] == "experience"
     assert "Create a reusable plan from draft material" in data["examples"]
+    assert any(item["id"] == "experience" for item in data["mode_presets"])
     assert data["defaults"]["project_name"] == "OpenFlow Workspace"
 
     app_shell = client.get("/app")
@@ -1200,6 +1239,7 @@ def test_app_project_endpoints_return_workspace_payloads() -> None:
             "goal": "Drive the new frontend from aggregated project APIs.",
             "initial_prompt": "Need a parallel app shell that reads project state, session state, and materials from page-level APIs.",
             "project_name": "Frontend Shell Demo",
+            "preferred_project_mode": "delivery",
         },
     )
     project_id = bootstrap_response.json()["project_id"]
@@ -1208,15 +1248,18 @@ def test_app_project_endpoints_return_workspace_payloads() -> None:
     welcome_payload = client.get(f"/api/app/projects/{project_id}/welcome")
     assert welcome_payload.status_code == 200
     assert welcome_payload.json()["first_step_defaults"]["role_name"] == "Implementation Lead"
+    assert "workflow_graph.json" in welcome_payload.json()["first_step_defaults"]["input_files"]
 
     workspace_payload = client.get(f"/api/app/projects/{project_id}/workspace")
     assert workspace_payload.status_code == 200
     assert workspace_payload.json()["summary"]["project"]["project_name"] == "Frontend Shell Demo"
+    assert "recommended_work_package" in workspace_payload.json()["summary"]
     assert "timeline" in workspace_payload.json()
 
     session_payload = client.get(f"/api/app/projects/{project_id}/session/{session_id}")
     assert session_payload.status_code == 200
     assert session_payload.json()["complete_defaults"]["next_role_recommendation"] == "Review Operator"
+    assert "recommended_work_package" in session_payload.json()["payload"]
 
     knowledge_payload = client.get(f"/api/app/projects/{project_id}/knowledge")
     assert knowledge_payload.status_code == 200
@@ -1225,3 +1268,23 @@ def test_app_project_endpoints_return_workspace_payloads() -> None:
     tasks_payload = client.get(f"/api/app/projects/{project_id}/tasks")
     assert tasks_payload.status_code == 200
     assert "task_tree" in tasks_payload.json()["payload"]
+
+
+def test_app_welcome_defaults_follow_research_mode() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Turn collected references into reusable synthesis.",
+            "initial_prompt": "Start in research mode and keep the next session focused on material organization.",
+            "project_name": "Research Welcome Demo",
+            "preferred_project_mode": "research",
+        },
+    )
+    project_id = bootstrap_response.json()["project_id"]
+
+    welcome_payload = client.get(f"/api/app/projects/{project_id}/welcome")
+    assert welcome_payload.status_code == 200
+
+    defaults = welcome_payload.json()["first_step_defaults"]
+    assert defaults["role_name"] == "Research Curator"
+    assert "knowledge/knowledge_items.json" in defaults["input_files"]

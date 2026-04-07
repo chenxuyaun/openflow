@@ -63,6 +63,7 @@ docs/
   beta_backlog.md
   research_master_outline.md
   alpha_release_checklist.md
+  frontend_prompt_pack.md
   knowledge_index.json
   decision_registry.json
   workflow_blueprint.json
@@ -147,6 +148,9 @@ tracked in `docs/beta_backlog.md`.
 OpenFlow now also exposes a parallel frontend shell at `/app`. This decoupled
 workspace uses page-level JSON APIs under `/api/app/...` while the original
 server-rendered pages remain available for compatibility and verification.
+
+Frontend implementation prompts for a separate frontend-focused chat live in
+`docs/frontend_prompt_pack.md`.
 
 ## Release Notes
 

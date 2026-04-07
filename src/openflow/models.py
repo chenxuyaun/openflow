@@ -213,3 +213,151 @@ class ResearchPackBatchIngestRequest(BaseModel):
 
 class DecisionUpdateRequest(BaseModel):
     status: str
+
+
+class GoalModel(BaseModel):
+    project_id: str
+    core_goal: str
+    explicit_constraints: List[str] = Field(default_factory=list)
+    implicit_constraints: List[str] = Field(default_factory=list)
+    anti_goals: List[str] = Field(default_factory=list)
+    success_criteria: List[str] = Field(default_factory=list)
+    milestone_signals: List[str] = Field(default_factory=list)
+    risk_tolerance: str = "medium"
+    priority_policy: List[str] = Field(default_factory=list)
+
+
+class CognitiveState(BaseModel):
+    project_id: str
+    validated_facts: List[str] = Field(default_factory=list)
+    active_assumptions: List[str] = Field(default_factory=list)
+    open_questions: List[str] = Field(default_factory=list)
+    conflicts: List[str] = Field(default_factory=list)
+    current_gaps: List[str] = Field(default_factory=list)
+    focus_now: str = "Clarify the next safe step."
+
+
+class PlanStep(BaseModel):
+    step_id: str
+    title: str
+    objective: str
+    inputs: List[str] = Field(default_factory=list)
+    outputs: List[str] = Field(default_factory=list)
+    risks: List[str] = Field(default_factory=list)
+    completion_signals: List[str] = Field(default_factory=list)
+
+
+class PlanLayers(BaseModel):
+    project_id: str
+    strategic: List[PlanStep] = Field(default_factory=list)
+    phases: List[PlanStep] = Field(default_factory=list)
+    milestones: List[PlanStep] = Field(default_factory=list)
+    node_plan: List[PlanStep] = Field(default_factory=list)
+
+
+class TaskGraphNode(BaseModel):
+    node_id: str
+    task_id: str
+    title: str
+    phase: str
+    intent: str
+    owner_role: str
+    dependency_nodes: List[str] = Field(default_factory=list)
+    blocking_conditions: List[str] = Field(default_factory=list)
+    completion_conditions: List[str] = Field(default_factory=list)
+    rollback_conditions: List[str] = Field(default_factory=list)
+    status: str = "planned"
+
+
+class TaskGraphV2(BaseModel):
+    project_id: str
+    nodes: List[TaskGraphNode] = Field(default_factory=list)
+    edges: List[WorkflowEdge] = Field(default_factory=list)
+
+
+class RoleProfile(BaseModel):
+    role_name: str
+    mission: str
+    mindset: str
+    output_contract: List[str] = Field(default_factory=list)
+    focus_points: List[str] = Field(default_factory=list)
+    guardrails: List[str] = Field(default_factory=list)
+    preferred_tools: List[str] = Field(default_factory=list)
+
+
+class CapabilityRegistryEntry(BaseModel):
+    entry_id: str
+    entry_type: str
+    name: str
+    purpose: str
+    applies_to: List[str] = Field(default_factory=list)
+    activation_rules: List[str] = Field(default_factory=list)
+
+
+class NodeCapabilityMapEntry(BaseModel):
+    node_id: str
+    role_name: str
+    agent_profile: str
+    mcp_set: List[str] = Field(default_factory=list)
+    skill_set: List[str] = Field(default_factory=list)
+    tool_set: List[str] = Field(default_factory=list)
+    prompt_template: str
+    required_files: List[str] = Field(default_factory=list)
+    output_files: List[str] = Field(default_factory=list)
+    memory_read_policy: str = "operational_memory_first"
+    memory_write_policy: str = "append_structured_memory"
+    verification_policy: List[str] = Field(default_factory=list)
+    observability_policy: List[str] = Field(default_factory=list)
+
+
+class ExecutionCapsule(BaseModel):
+    project_id: str
+    node_id: str
+    role_name: str
+    session_intent: str
+    agent_profile: str
+    mcp_set: List[str] = Field(default_factory=list)
+    skill_set: List[str] = Field(default_factory=list)
+    tool_set: List[str] = Field(default_factory=list)
+    prompt_template: str
+    required_files: List[str] = Field(default_factory=list)
+    output_files: List[str] = Field(default_factory=list)
+    memory_pack_refs: List[str] = Field(default_factory=list)
+    verification_policy: List[str] = Field(default_factory=list)
+    observability_policy: List[str] = Field(default_factory=list)
+
+
+class MemoryPack(BaseModel):
+    pack_id: str
+    layer: str
+    title: str
+    summary: str
+    refs: List[str] = Field(default_factory=list)
+    keywords: List[str] = Field(default_factory=list)
+
+
+class ObservabilityEvent(BaseModel):
+    event_id: str
+    event_type: str
+    title: str
+    detail: str
+    created_at: datetime = Field(default_factory=utc_now)
+    refs: List[str] = Field(default_factory=list)
+
+
+class ObservabilitySnapshot(BaseModel):
+    project_id: str
+    current_phase: str
+    current_node_id: Optional[str] = None
+    current_role: Optional[str] = None
+    progress_percent: int = 0
+    recent_events: List[ObservabilityEvent] = Field(default_factory=list)
+
+
+class ImprovementRecord(BaseModel):
+    improvement_id: str
+    created_at: datetime = Field(default_factory=utc_now)
+    summary: str
+    plan_updates: List[str] = Field(default_factory=list)
+    mapping_updates: List[str] = Field(default_factory=list)
+    next_focus: List[str] = Field(default_factory=list)

@@ -108,8 +108,15 @@ def _mode_presets() -> list[dict[str, object]]:
 
 def _first_step_defaults(project_id: str, summary: Optional[dict[str, object]] = None) -> dict[str, str]:
     state = dict(summary.get("state", {})) if summary else {}
-    project_mode = str(state.get("project_mode", "delivery"))
     role_catalog = list(state.get("role_catalog", [])) if state else []
+    recommended_work_package = dict(summary.get("recommended_work_package", {})) if summary else {}
+    if recommended_work_package:
+        return {
+            "role_name": str(recommended_work_package.get("recommended_role", "Implementation Lead")),
+            "objective": str(recommended_work_package.get("suggested_session_objective", "Start the next recommended work step.")),
+            "input_files": "\n".join(recommended_work_package.get("recommended_files", [f"projects/{project_id}/workflow_graph.json"])),
+        }
+    project_mode = str(state.get("project_mode", "delivery"))
     input_files = [f"projects/{project_id}/workflow_graph.json"]
     defaults = {
         "role_name": "Implementation Lead",
@@ -425,7 +432,7 @@ def welcome_page(project_id: str, request: Request):
             "title": f"Welcome {project_id}",
             "project_id": project_id,
             "summary": summary,
-            "first_step_defaults": _first_step_defaults(project_id),
+            "first_step_defaults": _first_step_defaults(project_id, summary),
         },
     )
 

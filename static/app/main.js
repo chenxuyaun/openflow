@@ -45,6 +45,109 @@ function getModeUi(mode) {
   return map[mode] || map.delivery;
 }
 
+function getRecommendedWorkPackage(container) {
+  const workPackage = container?.recommended_work_package;
+  if (workPackage) {
+    return workPackage;
+  }
+  const recommendation = container?.recommendation || {};
+  const nextStep = container?.next_step || {};
+  const suggestedFiles = nextStep.state === "research_gap"
+    ? ["Open the materials center and organize the next source set."]
+    : ["projects/current/workflow_graph.json"];
+  const blockers = nextStep.state && !["ready", "none"].includes(nextStep.state) ? [nextStep.message].filter(Boolean) : [];
+  return {
+    recommended_role: recommendation.recommended_role || "Implementation Lead",
+    recommended_action: nextStep.primary_label || "Continue the recommended next step",
+    recommended_reason: recommendation.recommended_reason || nextStep.message || "Continue with the next work package from the saved project state.",
+    recommended_files: suggestedFiles,
+    expected_output: nextStep.message || "A saved result and a clear next handoff.",
+    success_criteria: [],
+    risks: [],
+    blocking_items: blockers,
+    confidence: "medium",
+    recommendation_source: "fallback",
+    secondary_note: recommendation.secondary_note || "",
+    project_mode: container?.state?.project_mode || "delivery",
+    next_step_state: nextStep.state || "none",
+    ready_for_auto_advance: false,
+    auto_advance_blockers: blockers,
+    suggested_session_objective: nextStep.message || "Start the next recommended work package.",
+    human_action_required: true,
+    materials_snapshot: {
+      organized_material_count: container?.materials?.organized_material_count || 0,
+      raw_source_count: 0,
+      synthesized_count: 0,
+      linked_count: 0,
+    },
+  };
+}
+
+function getConfidenceLabel(confidence) {
+  const map = {
+    high: "The current records strongly support this path.",
+    medium: "The current records support this path, but it may still change after more material or review.",
+    low: "This is a tentative path based on limited material.",
+  };
+  return map[confidence] || map.medium;
+}
+
+function getRecommendationSourceLabel(source) {
+  const map = {
+    latest_handoff: "This path comes mainly from the latest saved handoff and the role it pointed to next.",
+    confirm_gate: "This path is being shaped by a review gate that must be cleared before the work can continue.",
+    blocked_task: "This path is being shaped by blocked work that must be resolved before the project can move normally again.",
+    raw_material_gap: "This path is being shaped by missing organized materials, so the system is steering toward preparation work first.",
+    project_mode_research: "This path is being shaped by a research-heavy project mode and the current need for better material organization.",
+    decision_conflict: "This path is being shaped by a decision conflict, so the recommendation is protecting the project from moving on weak assumptions.",
+    review_replan: "This path is being shaped by a replan decision, so the current recommendation favors correction before more execution.",
+    review_changes_requested: "This path is being shaped by requested changes, so the recommendation favors another pass before continuing.",
+    fallback: "This path is based on the current project summary and the most recent visible next-step state.",
+  };
+  return map[source] || map.fallback;
+}
+
+function getNextStepStateUi(state, readyForAutoAdvance) {
+  const map = {
+    ready: {
+      chipClass: readyForAutoAdvance ? "ready" : "blocked",
+      chipLabel: readyForAutoAdvance ? "Ready to continue" : "Recommended, but not ready to auto-continue",
+      message: readyForAutoAdvance ? "The saved records already meet the conditions for the next work package." : "The system has a clear next work package, but a person still needs to continue it.",
+    },
+    review_needed: {
+      chipClass: "review",
+      chipLabel: "Waiting for review",
+      message: "The next work package is recommended, but review still has to happen before the system can treat it as ready.",
+    },
+    blocked: {
+      chipClass: "blocked",
+      chipLabel: "Blocked",
+      message: "The next work package is visible, but the project is blocked right now.",
+    },
+    changes_requested: {
+      chipClass: "review",
+      chipLabel: "Changes requested",
+      message: "The next work package is known, but another pass is required before the project should continue.",
+    },
+    replan_required: {
+      chipClass: "review",
+      chipLabel: "Replan required",
+      message: "The current path should be corrected before the project continues into the next work package.",
+    },
+    research_gap: {
+      chipClass: "blocked",
+      chipLabel: "More material needed",
+      message: "The system is pointing to material organization because the next execution step would be weak without it.",
+    },
+    none: {
+      chipClass: "blocked",
+      chipLabel: "Next step not ready yet",
+      message: "The project still needs a clearer saved result before a strong next work package can be formed.",
+    },
+  };
+  return map[state] || map.none;
+}
+
 function statline(items) {
   return `<div class="statline">${items.map((item) => `<div class="stat">${escapeHtml(item)}</div>`).join("")}</div>`;
 }
@@ -242,11 +345,159 @@ function renderReviewForm(projectId, handoffId, sessionId = "") {
   `;
 }
 
+function renderWorkPackageFiles(files = [], heading = "Files to read first") {
+  if (!files.length) {
+    return "";
+  }
+  const preview = files.slice(0, 2);
+  const rest = files.slice(2);
+  return `
+    <div class="work-package-card">
+      <strong>${escapeHtml(heading)}</strong>
+      <div class="compact-list" style="margin-top:8px">
+        ${preview.map((item) => `<div><code>${escapeHtml(item)}</code></div>`).join("")}
+      </div>
+      ${rest.length ? `<details class="details-block"><summary>Show all files</summary><div class="compact-list" style="margin-top:10px">${rest.map((item) => `<div><code>${escapeHtml(item)}</code></div>`).join("")}</div></details>` : ""}
+    </div>
+  `;
+}
+
+function renderRecommendedWorkPackage(projectId, workPackage, options = {}) {
+  const stateUi = getNextStepStateUi(workPackage.next_step_state, workPackage.ready_for_auto_advance);
+  const intro = options.variant === "welcome"
+    ? "This is the first practical work package the system wants to queue from the records it already has."
+    : "This is the next practical work package the system wants the project to move into.";
+  const blockingItems = workPackage.blocking_items || [];
+  const autoBlockers = workPackage.auto_advance_blockers || [];
+  const showImmediateBlockers = !workPackage.ready_for_auto_advance || (workPackage.human_action_required && !blockingItems.length);
+  const immediateBlockerList = blockingItems.length ? blockingItems : autoBlockers;
+  return `
+    <section class="panel">
+      <div class="work-package">
+        <div class="work-package-header">
+          <div class="work-package-meta">
+            <div class="eyebrow">Recommended Work Package</div>
+            <h2>What the project should do next</h2>
+            <p class="muted">${escapeHtml(intro)}</p>
+          </div>
+          <span class="status-chip ${stateUi.chipClass}">${escapeHtml(stateUi.chipLabel)}</span>
+        </div>
+        <div class="callout ${workPackage.ready_for_auto_advance ? "success" : workPackage.next_step_state === "review_needed" ? "warning" : "soft"}">
+          <strong>${escapeHtml(workPackage.recommended_role || "Implementation Lead")}</strong>
+          <p>${escapeHtml(workPackage.recommended_action || "Continue with the next work package.")}</p>
+          <p class="microcopy">${escapeHtml(stateUi.message)}</p>
+        </div>
+        ${showImmediateBlockers ? `
+          <div class="callout ${immediateBlockerList.length ? "danger" : "warning"}">
+            <strong>${workPackage.ready_for_auto_advance ? "Human check still required" : "Why it cannot continue automatically yet"}</strong>
+            ${immediateBlockerList.length
+              ? `<ul class="bullet-list">${immediateBlockerList.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+              : `<p>${escapeHtml(workPackage.human_action_required ? "The system has a recommendation, but a person still needs to decide or start the next step." : "The next work package is visible, but the project is not marked ready for automatic continuation yet.")}</p>`}
+          </div>
+        ` : `
+          <div class="callout success">
+            <strong>Auto-continue conditions are already in place</strong>
+            <p>The project records already satisfy the conditions for continuing. This page is only explaining the state, not triggering execution.</p>
+          </div>
+        `}
+        <div class="work-package-summary">
+          <div class="work-package-card">
+            <strong>Why this is recommended</strong>
+            <p>${escapeHtml(workPackage.recommended_reason || "This path best fits the current project state.")}</p>
+          </div>
+          <div class="work-package-card">
+            <strong>Expected output</strong>
+            <p>${escapeHtml(workPackage.expected_output || "Produce the next saved project result.")}</p>
+          </div>
+          ${renderWorkPackageFiles(workPackage.recommended_files)}
+          <div class="work-package-card">
+            <strong>Suggested objective</strong>
+            <p>${escapeHtml(workPackage.suggested_session_objective || "Start the next recommended work package.")}</p>
+          </div>
+        </div>
+        <details class="details-block" ${options.expanded ? "open" : ""}>
+          <summary>Open full work package details</summary>
+          <div class="separator-list" style="margin-top:12px">
+            ${renderWorkPackageFiles(workPackage.recommended_files, "Full file list")}
+            ${workPackage.success_criteria?.length ? `<div class="separator-item"><strong>Success criteria</strong><ul class="bullet-list">${workPackage.success_criteria.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>` : ""}
+            ${workPackage.risks?.length ? `<div class="separator-item"><strong>Risks to watch</strong><ul class="bullet-list">${workPackage.risks.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>` : ""}
+            ${blockingItems.length ? `<div class="separator-item"><strong>Current blocking items</strong><ul class="bullet-list">${blockingItems.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>` : ""}
+            <div class="separator-item"><strong>Confidence</strong><p>${escapeHtml(getConfidenceLabel(workPackage.confidence))}</p></div>
+            ${workPackage.secondary_note ? `<div class="separator-item"><strong>Additional note</strong><p>${escapeHtml(workPackage.secondary_note)}</p></div>` : ""}
+          </div>
+        </details>
+        ${options.showActionLink ? `<div class="actions"><a class="button secondary" href="${options.showActionLink}" data-nav>Open the page that handles this step</a></div>` : ""}
+      </div>
+    </section>
+  `;
+}
+
+function renderRecommendationExplanation(workPackage) {
+  const snapshot = workPackage.materials_snapshot || {};
+  const hasBlockingInfluence = workPackage.blocking_items?.length;
+  return `
+    <section class="panel">
+      <div class="eyebrow">Why This Work Package Is Recommended</div>
+      <h2>Why the system is steering the project this way</h2>
+      <div class="callout soft">
+        <strong>${escapeHtml(workPackage.recommended_reason || "The current project state points toward this path.")}</strong>
+        <p class="microcopy">${escapeHtml(getRecommendationSourceLabel(workPackage.recommendation_source))}</p>
+      </div>
+      <div class="metrics-mini" style="margin-top:14px">
+        <div class="metric-mini"><strong>Organized materials</strong><span class="microcopy">${snapshot.organized_material_count || 0}</span></div>
+        <div class="metric-mini"><strong>Raw sources</strong><span class="microcopy">${snapshot.raw_source_count || 0}</span></div>
+        <div class="metric-mini"><strong>Synthesized insights</strong><span class="microcopy">${snapshot.synthesized_count || 0}</span></div>
+        <div class="metric-mini"><strong>Linked decision materials</strong><span class="microcopy">${snapshot.linked_count || 0}</span></div>
+      </div>
+      <div class="separator-list" style="margin-top:14px">
+        <div class="separator-item">
+          <strong>How reliable this looks right now</strong>
+          <p>${escapeHtml(getConfidenceLabel(workPackage.confidence))}</p>
+        </div>
+        ${hasBlockingInfluence ? `<div class="separator-item"><strong>What is also affecting this recommendation</strong><ul class="bullet-list">${workPackage.blocking_items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>` : ""}
+        ${workPackage.secondary_note ? `<div class="separator-item"><strong>Additional context</strong><p>${escapeHtml(workPackage.secondary_note)}</p></div>` : ""}
+      </div>
+    </section>
+  `;
+}
+
+function renderAutoAdvanceReadiness(workPackage) {
+  const stateUi = getNextStepStateUi(workPackage.next_step_state, workPackage.ready_for_auto_advance);
+  const blockers = workPackage.auto_advance_blockers?.length ? workPackage.auto_advance_blockers : workPackage.blocking_items || [];
+  return `
+    <section class="panel">
+      <div class="eyebrow">Auto-Advance Readiness</div>
+      <h2>Whether the next step is actually ready to continue</h2>
+      <div class="callout ${workPackage.ready_for_auto_advance ? "success" : blockers.length ? "danger" : "warning"}">
+        <strong>${workPackage.ready_for_auto_advance ? "The current records satisfy the continuation conditions." : "The system has a recommendation, but it is not ready to continue automatically yet."}</strong>
+        <p>${escapeHtml(stateUi.message)}</p>
+      </div>
+      ${!workPackage.ready_for_auto_advance ? `
+        <div class="separator-item">
+          <strong>What is stopping automatic continuation right now</strong>
+          ${blockers.length
+            ? `<ul class="bullet-list">${blockers.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+            : `<p>${escapeHtml(workPackage.human_action_required ? "A person still needs to review, choose, or start the next step." : "The next step is visible, but the project is not marked ready to continue automatically.")}</p>`}
+        </div>
+      ` : ""}
+      <div class="separator-list" style="margin-top:14px">
+        <div class="separator-item">
+          <strong>Suggested objective for the next session</strong>
+          <p>${escapeHtml(workPackage.suggested_session_objective || workPackage.recommended_action || "Continue the next recommended work package.")}</p>
+        </div>
+        ${workPackage.success_criteria?.length ? `<div class="separator-item"><strong>What a good next result should look like</strong><ul class="bullet-list">${workPackage.success_criteria.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>` : ""}
+        ${workPackage.risks?.length ? `<div class="separator-item"><strong>What to watch after it continues</strong><ul class="bullet-list">${workPackage.risks.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>` : ""}
+      </div>
+    </section>
+  `;
+}
+
 async function renderWelcome(projectId) {
   const { summary, first_step_defaults } = await apiFetch(`/api/app/projects/${projectId}/welcome`);
   const recommendation = summary.recommendation;
   const handoff = summary.latest_handoff;
   const nextStep = summary.next_step;
+  const workPackage = getRecommendedWorkPackage(summary);
   const modeUi = getModeUi(summary.state.project_mode);
   const actionArea = handoff && nextStep.state === "ready"
     ? `<button type="button" data-advance-handoff="${handoff.handoff_id}" data-project="${projectId}">Continue Recommended Step</button>
@@ -290,12 +541,17 @@ async function renderWelcome(projectId) {
             <div class="list-item"><strong>Recommended action</strong><p>${escapeHtml(nextStep.message)}</p><div class="actions">${actionArea}</div></div>
           </div>
         </section>
+        ${renderRecommendedWorkPackage(projectId, workPackage, {
+          variant: "welcome",
+          showActionLink: `/app/projects/${projectId}`,
+        })}
         ${!handoff && nextStep.state !== "research_gap" ? renderFirstStepCard(projectId, first_step_defaults) : ""}
       </article>
       <aside class="grid">
         <section class="panel"><div class="eyebrow">Goal</div><h3>What this workspace is trying to finish</h3><p>${escapeHtml(summary.project.goal)}</p></section>
         <section class="panel"><div class="eyebrow">Materials</div><h3>What is already organized</h3><p>${escapeHtml(summary.materials.summary)}</p></section>
         <section class="panel"><div class="eyebrow">Progress</div><h3>Current state in ordinary work language</h3><p>${escapeHtml(summary.governance.why_current_state)}</p></section>
+        ${renderRecommendationExplanation(workPackage)}
       </aside>
     </section>
   `;
@@ -306,6 +562,7 @@ async function renderProject(projectId) {
   const handoff = summary.latest_handoff;
   const recommendation = summary.recommendation;
   const nextStep = summary.next_step;
+  const workPackage = getRecommendedWorkPackage(summary);
   const modeUi = getModeUi(summary.state.project_mode);
   const actionArea = handoff && nextStep.state === "review_needed"
     ? renderReviewForm(projectId, handoff.handoff_id)
@@ -350,6 +607,10 @@ async function renderProject(projectId) {
             <div class="list-item"><strong>Recommended action</strong><p>${escapeHtml(nextStep.message)}</p><div class="actions">${actionArea}</div></div>
           </div>
         </section>
+        ${renderRecommendedWorkPackage(projectId, workPackage, {
+          variant: "workspace",
+          showActionLink: nextStep.state === "research_gap" ? `/app/projects/${projectId}/knowledge` : `/app/projects/${projectId}`,
+        })}
         <section class="panel">
           <div class="eyebrow">Progress Snapshot</div>
           <h2>Current goal and work board snapshot</h2>
@@ -362,6 +623,7 @@ async function renderProject(projectId) {
       <aside class="grid">
         <section class="panel">${summary.latest_session ? `<div class="eyebrow">Current Progress</div><h3>${escapeHtml(summary.latest_session.role_name)}</h3><p class="muted">${escapeHtml(summary.latest_session.status)}</p><a class="button secondary" href="/app/projects/${projectId}/sessions/${summary.latest_session.session_id}" data-nav>Open work step detail</a>` : `<p class="muted">No session exists yet.</p>`}</section>
         <section class="panel"><div class="eyebrow">Research Slots</div>${chips(summary.state.research_slots)}</section>
+        ${renderRecommendationExplanation(workPackage)}
         <section class="panel"><div class="eyebrow">Timeline</div><div class="list">${timeline.slice(0, 3).map((item) => `<div class="result-block"><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.summary)}</p><p class="microcopy">Because: ${escapeHtml(item.because)}</p></div>`).join("")}</div></section>
       </aside>
     </section>
@@ -381,6 +643,7 @@ async function renderSession(projectId, sessionId) {
   const { payload, complete_defaults } = await apiFetch(`/api/app/projects/${projectId}/session/${sessionId}`);
   const handoff = payload.handoff;
   const recommendation = payload.recommendation;
+  const workPackage = getRecommendedWorkPackage(payload);
   return `
     <section class="hero">
       <div class="eyebrow">Work Step Detail</div>
@@ -416,6 +679,7 @@ async function renderSession(projectId, sessionId) {
             ${handoff ? `<div class="list-item"><strong>Handoff state</strong><p class="microcopy">Advanced status: ${escapeHtml(handoff.acceptance_status || "not_set")} | Review: ${escapeHtml(handoff.review_outcome || "not_set")}</p>${payload.next_step.state === "review_needed" ? renderReviewForm(projectId, handoff.handoff_id, sessionId) : ""}${payload.next_step.state === "ready" ? `<div class="actions"><button type="button" data-advance-handoff="${handoff.handoff_id}" data-project="${projectId}">${escapeHtml(payload.next_step.primary_label)}</button></div>` : ""}</div>` : `<div class="list-item"><strong>No saved outcome has been written yet.</strong><p class="muted">Complete the work step to produce a handoff and next-step recommendation.</p></div>`}
           </div>
         </section>
+        ${renderAutoAdvanceReadiness(workPackage)}
         <section class="panel">
           <div class="eyebrow">Complete Step</div>
           <h2>Write the preserved result and next handoff</h2>

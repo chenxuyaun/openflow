@@ -12,14 +12,26 @@ from datetime import datetime, timezone
 
 from openflow.models import (
     BootstrapRequest,
+    CapabilityRegistryEntry,
+    CognitiveState,
     DecisionUpdateRequest,
     DecisionRecord,
+    ExecutionCapsule,
+    GoalModel,
     HandoffRecord,
     HandoffReviewRequest,
+    ImprovementRecord,
     KnowledgeItem,
+    MemoryPack,
+    NodeCapabilityMapEntry,
+    ObservabilityEvent,
+    ObservabilitySnapshot,
+    PlanLayers,
+    PlanStep,
     ProjectState,
     ResearchPackBatchIngestRequest,
     ResearchPackIngestRequest,
+    RoleProfile,
     RoleInstanceSpec,
     SessionCompleteRequest,
     SessionCreateRequest,
@@ -27,6 +39,8 @@ from openflow.models import (
     SessionStatus,
     SourceType,
     TaskNode,
+    TaskGraphNode,
+    TaskGraphV2,
     WorkflowEdge,
     WorkflowGraph,
     WorkflowNode,
@@ -99,6 +113,12 @@ class OpenFlowRepository:
 
     def _session_dir(self, project_id: str, session_id: str) -> Path:
         return self._project_dir(project_id) / "sessions" / session_id
+
+    def _system_dir(self, project_id: str) -> Path:
+        return self._project_dir(project_id) / "system"
+
+    def _capsules_dir(self, project_id: str) -> Path:
+        return self._system_dir(project_id) / "capsules"
 
     def _write_json(self, path: Path, payload: object) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -826,7 +846,15 @@ class OpenFlowRepository:
                 "recommendation_source": "project_mode_research",
                 "secondary_note": secondary_note,
             }
-        first_role = state.role_catalog[0].role_name if state.role_catalog else "Implementation Lead"
+        mode_role_order = {
+            "delivery": ["Implementation Lead", "System Architect", "Review Operator"],
+            "experience": ["Experience Designer", "System Architect", "Review Operator"],
+            "research": ["Research Curator", "System Architect", "Review Operator"],
+            "multimodal": ["Implementation Lead", "System Architect", "Review Operator"],
+        }
+        allowed_order = mode_role_order.get(state.project_mode, ["Implementation Lead", "System Architect", "Review Operator"])
+        preferred_roles = [role_name for role_name in allowed_order if any(role.role_name == role_name for role in state.role_catalog)]
+        first_role = preferred_roles[0] if preferred_roles else (state.role_catalog[0].role_name if state.role_catalog else "Implementation Lead")
         return {
             "recommended_role": first_role,
             "recommended_reason": "No handoff exists yet, so the workspace should start the first executable step.",
@@ -896,6 +924,159 @@ class OpenFlowRepository:
             "message": "This next step is ready to start.",
             "actions": ["start"],
             "primary_label": "Start Suggested Next Step",
+        }
+
+    def _default_files_for_role(self, project_id: str, role_name: str, project_mode: str) -> list[str]:
+        if role_name == "Research Curator":
+            return [
+                f"projects/{project_id}/project.json",
+                f"projects/{project_id}/knowledge/knowledge_items.json",
+            ]
+        if role_name == "Experience Designer":
+            return [
+                f"projects/{project_id}/project.json",
+                f"projects/{project_id}/workflow_graph.json",
+            ]
+        if role_name == "System Architect":
+            return [
+                f"projects/{project_id}/workflow_graph.json",
+                f"projects/{project_id}/task_tree.json",
+            ]
+        if role_name == "Review Operator":
+            return [
+                f"projects/{project_id}/task_tree.json",
+                f"projects/{project_id}/decisions.json",
+            ]
+        if project_mode == "multimodal":
+            return [
+                f"projects/{project_id}/project.json",
+                f"projects/{project_id}/workflow_graph.json",
+            ]
+        return [f"projects/{project_id}/workflow_graph.json"]
+
+    def _default_expected_output(self, role_name: str, recommended_action: str, project_mode: str) -> str:
+        if recommended_action == "continue_review":
+            return "A review outcome that either approves, requests changes, or sends the work back to replanning."
+        if recommended_action == "organize_materials":
+            return "An organized material set with reusable summaries, linked decisions, and clear next-step evidence."
+        if recommended_action == "replan":
+            return "A revised role and task direction that explains how the project should continue."
+        if role_name == "Experience Designer":
+            return "A clearer user journey package with adjusted flow, proof points, and reduced friction."
+        if role_name == "Research Curator":
+            return "A synthesized research package that later roles can reuse without rereading raw material."
+        if role_name == "System Architect":
+            return "A stable execution package with explicit boundaries, file contracts, and confirmation points."
+        if project_mode == "multimodal":
+            return "A runnable multimodal work package that connects input, planning, and next execution."
+        return "A structured handoff package that the next fresh session can execute from files only."
+
+    def _default_success_criteria(
+        self,
+        state: ProjectState,
+        role_name: str,
+        recommended_action: str,
+        next_step: dict[str, object],
+    ) -> list[str]:
+        matching_tasks = [task for task in state.task_tree if task.owner_role == role_name and task.success_criteria]
+        if matching_tasks:
+            return list(matching_tasks[0].success_criteria)
+        if recommended_action == "continue_review":
+            return [
+                "Record an explicit review outcome.",
+                "Explain whether the next step can advance safely.",
+            ]
+        if recommended_action == "organize_materials":
+            return [
+                "Raw material is separated from reusable synthesis.",
+                "The next role can see which files to read first.",
+            ]
+        if next_step["state"] == "blocked":
+            return [
+                "Resolve the blocking condition.",
+                "Return the workspace to a ready or reviewable state.",
+            ]
+        return ["Leave a structured result that the next fresh session can continue from."]
+
+    def _blocking_items_view(
+        self,
+        governance: dict[str, object],
+        blocked_now: Optional[str],
+        decision_signals: dict[str, int],
+        latest_handoff: Optional[HandoffRecord],
+    ) -> list[str]:
+        items: list[str] = []
+        if governance.get("confirm_waiting"):
+            items.append("A confirm-gated review is still waiting for an explicit outcome.")
+        if latest_handoff and latest_handoff.acceptance_status == "changes_requested":
+            items.append("The latest review requested changes before the project can advance.")
+        if latest_handoff and latest_handoff.acceptance_status == "replan_required":
+            items.append("The latest review required replanning before execution can continue.")
+        if blocked_now:
+            items.append(blocked_now)
+        if decision_signals["conflicted_items"] > 0:
+            items.append(f"{decision_signals['conflicted_items']} decision-linked material sets are in conflict.")
+        return items
+
+    def _work_package_view(
+        self,
+        state: ProjectState,
+        latest_handoff: Optional[HandoffRecord],
+        governance: dict[str, object],
+        materials: dict[str, object],
+        blocked_now: Optional[str],
+        recommendation: dict[str, object],
+        next_step: dict[str, object],
+    ) -> dict[str, object]:
+        decision_signals = self._decision_signal_summary(state)
+        recommended_role = str(recommendation["recommended_role"])
+        recommended_action = str(recommendation["recommended_action"])
+        recommended_files = list(latest_handoff.required_input_files) if latest_handoff and latest_handoff.required_input_files else []
+        if not recommended_files:
+            recommended_files = self._default_files_for_role(state.project_id, recommended_role, state.project_mode)
+        risks = list(latest_handoff.risks) if latest_handoff and latest_handoff.risks else []
+        if not risks and blocked_now:
+            risks = [blocked_now]
+        if not risks and decision_signals["conflicted_items"] > 0:
+            risks = ["Decision-linked materials conflict with the current direction."]
+        if not risks and governance.get("confirm_waiting"):
+            risks = ["A review outcome is still required before the next step can start."]
+        success_criteria = list(latest_handoff.success_criteria) if latest_handoff and latest_handoff.success_criteria else []
+        if not success_criteria:
+            success_criteria = self._default_success_criteria(state, recommended_role, recommended_action, next_step)
+        blocking_items = self._blocking_items_view(governance, blocked_now, decision_signals, latest_handoff)
+        auto_advance_blockers = list(blocking_items)
+        if not latest_handoff and recommended_action == "start_first_step":
+            auto_advance_blockers.append("The project still needs a human-started first work step before automatic continuation can exist.")
+        if next_step["state"] in {"blocked", "review_needed", "changes_requested", "replan_required"} and not auto_advance_blockers:
+            auto_advance_blockers.append(next_step["message"])
+        if recommended_action in {"open_details", "continue_review", "replan", "needs_changes"} and not auto_advance_blockers:
+            auto_advance_blockers.append("The current recommendation still requires human review or intervention.")
+        ready_for_auto_advance = not auto_advance_blockers and next_step["state"] == "ready"
+        return {
+            "recommended_role": recommended_role,
+            "recommended_action": recommended_action,
+            "recommended_reason": recommendation["recommended_reason"],
+            "recommended_files": recommended_files,
+            "expected_output": self._default_expected_output(recommended_role, recommended_action, state.project_mode),
+            "success_criteria": success_criteria,
+            "risks": risks,
+            "blocking_items": blocking_items,
+            "confidence": recommendation["recommendation_confidence"],
+            "recommendation_source": recommendation["recommendation_source"],
+            "secondary_note": recommendation.get("secondary_note"),
+            "project_mode": state.project_mode,
+            "next_step_state": next_step["state"],
+            "ready_for_auto_advance": ready_for_auto_advance,
+            "auto_advance_blockers": auto_advance_blockers,
+            "suggested_session_objective": recommendation["recommended_reason"],
+            "human_action_required": not ready_for_auto_advance,
+            "materials_snapshot": {
+                "organized_material_count": materials["organized_material_count"],
+                "raw_source_count": materials["raw_source_count"],
+                "synthesized_count": materials["synthesized_count"],
+                "linked_count": materials["linked_count"],
+            },
         }
 
     def _decision_support_map(
@@ -1592,6 +1773,15 @@ class OpenFlowRepository:
         materials = self._materials_summary(state)
         recommendation = self._recommendation_view(state, latest_handoff, governance, materials, blocked_now)
         next_step = self._next_step_view(latest_handoff, governance, recommendation)
+        recommended_work_package = self._work_package_view(
+            state,
+            latest_handoff,
+            governance,
+            materials,
+            blocked_now,
+            recommendation,
+            next_step,
+        )
         project_stage = self._project_stage(state, latest_handoff, governance)
         next_role = recommendation["recommended_role"]
         why_next_role = recommendation["recommended_reason"]
@@ -1605,6 +1795,7 @@ class OpenFlowRepository:
             "governance": governance,
             "project_stage": project_stage,
             "recommendation": recommendation,
+            "recommended_work_package": recommended_work_package,
             "next_step": next_step,
             "materials": materials,
             "next_role": next_role,
@@ -1836,6 +2027,15 @@ class OpenFlowRepository:
             "actions": ["organize_materials"] if recommendation["recommended_action"] == "organize_materials" else ["start_first_step"],
             "primary_label": "Organize Materials" if recommendation["recommended_action"] == "organize_materials" else "Start First Work Step",
         }
+        recommended_work_package = self._work_package_view(
+            state,
+            handoff,
+            governance,
+            materials,
+            blocked_now,
+            recommendation,
+            next_step,
+        )
         return {
             "project_id": project_id,
             "session": session.model_dump(mode="json"),
@@ -1845,6 +2045,7 @@ class OpenFlowRepository:
             "why_exists": why_exists,
             "project_stage": self._project_stage(state, handoff, governance),
             "recommendation": recommendation,
+            "recommended_work_package": recommended_work_package,
             "review_state": next_step["state"],
             "review_feedback_message": self._review_feedback_message(handoff.acceptance_status if handoff else None),
             "next_step": next_step,
