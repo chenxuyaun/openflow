@@ -543,6 +543,74 @@ class OpenFlowRepository:
             "why_current_state": why_current,
         }
 
+    def _review_feedback_message(self, review_status: Optional[str]) -> Optional[str]:
+        if review_status == "approved":
+            return "Review complete. This next step is approved and ready to continue."
+        if review_status == "changes_requested":
+            return "Review complete. Another pass is needed before this work moves forward."
+        if review_status == "replan_required":
+            return "Review complete. The workspace should replan the next step before continuing."
+        return None
+
+    def _materials_summary(self, state: ProjectState) -> dict[str, object]:
+        research_items = [
+            item
+            for item in state.knowledge_items
+            if item.source_family != "project_memory" or item.entry_kind != "derived"
+        ]
+        research_groups = sorted({item.source_family for item in research_items})
+        return {
+            "knowledge_count": len(state.knowledge_items),
+            "organized_material_count": len(research_items),
+            "research_group_count": len(research_groups),
+            "research_groups": research_groups,
+            "summary": (
+                f"{len(research_items)} organized materials across {len(research_groups)} groups."
+                if research_items
+                else "No organized materials yet. Start by turning notes and references into reusable project knowledge."
+            ),
+        }
+
+    def _next_step_view(
+        self,
+        latest_handoff: Optional[HandoffRecord],
+        governance: dict[str, object],
+    ) -> dict[str, object]:
+        if not latest_handoff:
+            return {
+                "state": "none",
+                "message": "No suggested next step has been written yet.",
+                "actions": [],
+                "primary_label": None,
+            }
+        if governance.get("confirm_waiting"):
+            return {
+                "state": "review_needed",
+                "message": "This next step needs a review before it can start.",
+                "actions": ["continue", "needs_changes", "replan"],
+                "primary_label": "Continue",
+            }
+        if latest_handoff.acceptance_status == "changes_requested":
+            return {
+                "state": "changes_requested",
+                "message": "This work needs another pass before moving on.",
+                "actions": [],
+                "primary_label": None,
+            }
+        if latest_handoff.acceptance_status == "replan_required":
+            return {
+                "state": "replan_required",
+                "message": "This work should be replanned before moving on.",
+                "actions": [],
+                "primary_label": None,
+            }
+        return {
+            "state": "ready",
+            "message": "This next step is ready to start.",
+            "actions": ["start"],
+            "primary_label": "Start Suggested Next Step",
+        }
+
     def _decision_support_map(
         self,
         knowledge_items: list[KnowledgeItem],
@@ -1229,6 +1297,8 @@ class OpenFlowRepository:
                 break
         timeline = self.get_project_timeline(project_id)
         governance = self._governance_summary(state, latest_handoff)
+        next_step = self._next_step_view(latest_handoff, governance)
+        materials = self._materials_summary(state)
         next_role = latest_handoff.next_role_recommendation if latest_handoff else (state.role_catalog[0].role_name if state.role_catalog else None)
         why_next_role = latest_handoff.next_role_reason if latest_handoff else "Bootstrap created the first role from the initial request."
         blocked_now = None
@@ -1244,6 +1314,8 @@ class OpenFlowRepository:
             "latest_handoff": latest_handoff.model_dump(mode="json") if latest_handoff else None,
             "timeline": timeline["events"],
             "governance": governance,
+            "next_step": next_step,
+            "materials": materials,
             "next_role": next_role,
             "why_next_role": why_next_role,
             "blocked_now": blocked_now,
@@ -1269,6 +1341,7 @@ class OpenFlowRepository:
         for item in research_packs:
             grouped_research.setdefault(item.source_family, []).append(item.model_dump(mode="json"))
         decision_support = self._decision_support_map(state.knowledge_items, state.decisions)
+        materials = self._materials_summary(state)
         return {
             "project_id": project_id,
             "blueprint_documents": self._blueprint_documents(),
@@ -1278,6 +1351,26 @@ class OpenFlowRepository:
             "project_files": project_files,
             "research_groups": grouped_research,
             "decision_support": decision_support,
+            "materials": materials,
+            "organize_defaults": {
+                "pack_title": "Collected source review",
+                "source_family": "workflow_handoff_methods",
+                "source_ref": "organized-notes",
+                "raw_notes": "Paste raw notes, links, meeting notes, or earlier chat summaries here.",
+                "synthesized_summary": "Summarize what should change in the product, process, or next decision.",
+                "batch_payload": (
+                    "pack_title: Collected source review\n"
+                    "source_family: workflow_handoff_methods\n"
+                    "source_ref: organized-notes\n"
+                    "raw_notes: Raw notes from references and working files.\n"
+                    "synthesized_summary: Make the next step and handoff state visible.\n"
+                    "themes: handoff_governance,knowledge_indexing\n"
+                    "decision_ids:\n"
+                    "adoption_status: proposed\n"
+                    "reliability: medium\n"
+                    "relevance: high"
+                ),
+            },
         }
 
     def get_project_timeline(self, project_id: str) -> dict[str, object]:
@@ -1328,13 +1421,19 @@ class OpenFlowRepository:
                 event_type = "handoff_knowledge_ingested"
             elif item.session_id:
                 event_type = "session_knowledge_ingested"
+            elif item.entry_kind == "synthesized_insight" and item.source_family != "project_memory":
+                event_type = "materials_organized"
             events.append(
                 {
                     "event_type": event_type,
                     "timestamp": item.generated_at.isoformat(),
                     "title": title,
                     "summary": item.summary,
-                    "because": f"{item.entry_kind} was preserved as durable project memory.",
+                    "because": (
+                        "Materials were organized into reusable project knowledge."
+                        if event_type == "materials_organized"
+                        else f"{item.entry_kind} was preserved as durable project memory."
+                    ),
                     "target_url": (
                         f"/projects/{project_id}/sessions/{item.session_id}"
                         if item.session_id
@@ -1408,6 +1507,13 @@ class OpenFlowRepository:
                     prior_handoff = candidate
         if prior_handoff:
             why_exists = f"This session exists because handoff {prior_handoff.handoff_id} recommended {session.role_name}: {prior_handoff.next_role_reason}"
+        governance = self._governance_summary(self.get_project_state(project_id), handoff)
+        next_step = self._next_step_view(handoff, governance) if handoff else {
+            "state": "none",
+            "message": "No saved outcome has been written yet.",
+            "actions": [],
+            "primary_label": None,
+        }
         return {
             "project_id": project_id,
             "session": session.model_dump(mode="json"),
@@ -1415,6 +1521,9 @@ class OpenFlowRepository:
             "transcript": transcript,
             "role_policy": role_policy,
             "why_exists": why_exists,
+            "review_state": next_step["state"],
+            "review_feedback_message": self._review_feedback_message(handoff.acceptance_status if handoff else None),
+            "next_step": next_step,
         }
 
     def _find_session(self, session_id: str) -> SessionRecord:

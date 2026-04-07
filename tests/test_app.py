@@ -533,10 +533,12 @@ def test_research_pack_ingest_creates_raw_and_synthesized_items() -> None:
     assert any(item["entry_kind"] == "raw_source" for item in payload["knowledge_items"])
     assert any(item["entry_kind"] == "synthesized_insight" for item in payload["knowledge_items"])
     assert "decision_support" in payload
+    assert payload["materials"]["organized_material_count"] >= 2
 
     knowledge_page = client.get(f"/projects/{project_id}/knowledge")
     assert knowledge_page.status_code == 200
-    assert "Ingest Research Pack" in knowledge_page.text
+    assert "Organize Materials" in knowledge_page.text
+    assert "Organize Many Materials At Once" in knowledge_page.text
     assert "Research Packs" in knowledge_page.text
     assert "Decisions Influenced By Research" in knowledge_page.text
 
@@ -583,6 +585,7 @@ def test_batch_research_pack_ingest_groups_multiple_packs() -> None:
     payload = knowledge_response.json()
     assert "workflow_handoff_methods" in payload["research_groups"]
     assert "competitor_and_adjacent_products" in payload["research_groups"]
+    assert payload["materials"]["research_group_count"] >= 2
 
 
 def test_decision_registry_can_update_status() -> None:
@@ -631,6 +634,7 @@ def test_project_dashboard_shows_governance_and_task_board_link() -> None:
     assert "Suggested Next Step" in project_page.text
     assert "Why This Step Is Recommended" in project_page.text
     assert "Work type:" in project_page.text
+    assert "Organize Materials" in project_page.text
 
 
 def test_project_page_surfaces_confirm_review_in_main_path() -> None:
@@ -880,6 +884,34 @@ def test_timeline_includes_because_explanations() -> None:
 
     timeline = get_project_timeline(project_id)
     assert all("because" in item for item in timeline["events"])
+
+
+def test_material_organization_creates_timeline_event() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Organize source material into reusable project memory.",
+            "initial_prompt": "Need a materials workflow that preserves raw notes and synthesized insights.",
+            "project_name": "Materials Timeline Demo",
+        },
+    )
+    project_id = bootstrap_response.json()["project_id"]
+
+    ingest_response = client.post(
+        "/research-packs",
+        json={
+            "project_id": project_id,
+            "pack_title": "Material organization pass",
+            "source_family": "workflow_handoff_methods",
+            "source_ref": "notes-c",
+            "raw_notes": "Raw material collected from references.",
+            "synthesized_summary": "Organize the references into reusable next-step guidance.",
+        },
+    )
+    assert ingest_response.status_code == 200
+
+    timeline = get_project_timeline(project_id)
+    assert any(item["event_type"] == "materials_organized" for item in timeline["events"])
 
 
 def test_workspace_language_appears_on_task_and_session_pages() -> None:

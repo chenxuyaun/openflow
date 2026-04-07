@@ -4,6 +4,12 @@
   <div class="eyebrow">Materials Center</div>
   <h1>Materials for {{ project_id }}</h1>
   <p class="muted">Files, research packs, preserved notes, and project knowledge stay visible here.</p>
+  <div class="statline">
+    <div class="stat">Knowledge items: {{ payload.materials.knowledge_count }}</div>
+    <div class="stat">Organized materials: {{ payload.materials.organized_material_count }}</div>
+    <div class="stat">Material groups: {{ payload.materials.research_group_count }}</div>
+  </div>
+  <p>{{ payload.materials.summary }}</p>
   <p><a href="/projects/{{ project_id }}/decisions">Open Important Decisions</a></p>
 </section>
 
@@ -63,50 +69,31 @@
   {% endfor %}
 </section>
 
-<section class="panel">
-  <h2>Ingest Research Pack</h2>
+<section class="panel" id="organize-materials">
+  <h2>Organize Materials</h2>
+  <p class="muted">Turn source notes, earlier chats, meeting notes, and internal files into reusable project knowledge.</p>
   <form method="post" action="/projects/{{ project_id }}/research-packs">
-    <p><label>Pack title<br /><input type="text" name="pack_title" style="width:100%" value="Workflow method review" /></label></p>
-    <p><label>Source family<br /><input type="text" name="source_family" style="width:100%" value="workflow_handoff_methods" /></label></p>
-    <p><label>Source ref<br /><input type="text" name="source_ref" style="width:100%" value="internal-notes" /></label></p>
-    <p><label>Raw notes<br /><textarea name="raw_notes" style="width:100%;min-height:100px">Paste the raw source material or normalized notes here.</textarea></label></p>
-    <p><label>Synthesized summary<br /><textarea name="synthesized_summary" style="width:100%;min-height:100px">Summarize what should affect product, workflow, or governance decisions.</textarea></label></p>
+    <p><label>Material set name<br /><input type="text" name="pack_title" style="width:100%" value="{{ payload.organize_defaults.pack_title }}" /></label></p>
+    <p><label>Material group<br /><input type="text" name="source_family" style="width:100%" value="{{ payload.organize_defaults.source_family }}" /></label></p>
+    <p><label>Where these materials came from<br /><input type="text" name="source_ref" style="width:100%" value="{{ payload.organize_defaults.source_ref }}" /></label></p>
+    <p><label>Collected raw material<br /><textarea name="raw_notes" style="width:100%;min-height:100px">{{ payload.organize_defaults.raw_notes }}</textarea></label></p>
+    <p><label>What should carry forward<br /><textarea name="synthesized_summary" style="width:100%;min-height:100px">{{ payload.organize_defaults.synthesized_summary }}</textarea></label></p>
     <p><label>Themes<br /><textarea name="themes" style="width:100%;min-height:70px">knowledge_indexing
 handoff_governance</textarea></label></p>
     <p><label>Decision ids<br /><textarea name="decision_ids" style="width:100%;min-height:70px"></textarea></label></p>
     <p><label>Adoption status<br /><input type="text" name="adoption_status" style="width:100%" value="proposed" /></label></p>
     <p><label>Reliability<br /><input type="text" name="reliability" style="width:100%" value="medium" /></label></p>
     <p><label>Relevance<br /><input type="text" name="relevance" style="width:100%" value="high" /></label></p>
-    <p><button type="submit">Ingest Research Pack</button></p>
+    <p><button type="submit">Organize Materials</button></p>
   </form>
 </section>
 
 <section class="panel">
-  <h2>Batch Research Pack Ingest</h2>
-  <p class="muted">Use blank lines to separate packs. Supported keys: <code>pack_title</code>, <code>source_family</code>, <code>source_ref</code>, <code>raw_notes</code>, <code>synthesized_summary</code>, <code>themes</code>, <code>decision_ids</code>, <code>adoption_status</code>, <code>reliability</code>, <code>relevance</code>.</p>
+  <h2>Organize Many Materials At Once</h2>
+  <p class="muted">Use blank lines to separate material sets. Supported keys: <code>pack_title</code>, <code>source_family</code>, <code>source_ref</code>, <code>raw_notes</code>, <code>synthesized_summary</code>, <code>themes</code>, <code>decision_ids</code>, <code>adoption_status</code>, <code>reliability</code>, <code>relevance</code>.</p>
   <form method="post" action="/projects/{{ project_id }}/research-packs/batch">
-    <p><label>Batch payload<br /><textarea name="batch_payload" style="width:100%;min-height:220px">pack_title: Workflow method review
-source_family: workflow_handoff_methods
-source_ref: internal-notes
-raw_notes: Raw notes about handoff quality.
-synthesized_summary: Adopt explicit review visibility.
-themes: handoff_governance,knowledge_indexing
-decision_ids:
-adoption_status: proposed
-reliability: medium
-relevance: high
-
-pack_title: Adjacent product scan
-source_family: competitor_and_adjacent_products
-source_ref: manual-notes
-raw_notes: Raw notes from adjacent products.
-synthesized_summary: Reject hidden state transitions.
-themes: product_narrative,workflow_governance
-decision_ids:
-adoption_status: proposed
-reliability: medium
-relevance: high</textarea></label></p>
-    <p><button type="submit">Ingest Batch Research Packs</button></p>
+    <p><label>Batch payload<br /><textarea name="batch_payload" style="width:100%;min-height:220px">{{ payload.organize_defaults.batch_payload }}</textarea></label></p>
+    <p><button type="submit">Organize Many Materials</button></p>
   </form>
 </section>
 

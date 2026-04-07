@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 {% set handoff = payload.handoff %}
-{% set review_needed = handoff and handoff.acceptance_status != "approved" and payload.role_policy == "confirm" %}
+{% set review_needed = payload.next_step.state == "review_needed" %}
 <section class="hero">
   <div class="eyebrow">Work Step Detail</div>
   <h1>{{ payload.session.role_name }}</h1>
@@ -46,6 +46,12 @@
     <p class="muted">The next step should be replanned before work continues.</p>
   </div>
   {% endif %}
+  {% if payload.review_feedback_message and not review_status %}
+  <div class="list-card">
+    <strong>Current review state.</strong>
+    <p class="muted">{{ payload.review_feedback_message }}</p>
+  </div>
+  {% endif %}
 </section>
 
 <section class="grid">
@@ -71,8 +77,8 @@
       <strong>{{ handoff.next_role_recommendation }}</strong>
       <p>{{ handoff.next_role_reason }}</p>
       <p class="muted">Why this next step is recommended: {{ handoff.next_role_reason }}</p>
+      <p>{{ payload.next_step.message }}</p>
       {% if review_needed %}
-      <p>This next step needs a review before it can start.</p>
       <p class="muted">Choose continue, request another pass, or send it back for replanning.</p>
       <form method="post" action="/projects/{{ project_id }}/handoffs/{{ handoff.handoff_id }}/review">
         <input type="hidden" name="return_to" value="session" />
@@ -84,18 +90,9 @@
           <button type="submit" name="action" value="replan_required">Replan</button>
         </p>
       </form>
-      {% elif handoff.acceptance_status == "approved" %}
-      <p>This next step is approved and ready to start.</p>
+      {% elif payload.next_step.state == "ready" %}
       <form method="post" action="/projects/{{ project_id }}/handoffs/{{ handoff.handoff_id }}/advance">
-        <p><button type="submit">Start Suggested Next Step</button></p>
-      </form>
-      {% elif handoff.acceptance_status == "changes_requested" %}
-      <p>This work needs another pass before moving on.</p>
-      {% elif handoff.acceptance_status == "replan_required" %}
-      <p>This work should be replanned before moving on.</p>
-      {% else %}
-      <form method="post" action="/projects/{{ project_id }}/handoffs/{{ handoff.handoff_id }}/advance">
-        <p><button type="submit">Start Suggested Next Step</button></p>
+        <p><button type="submit">{{ payload.next_step.primary_label }}</button></p>
       </form>
       {% endif %}
       <p class="muted">Advanced status: {{ handoff.acceptance_status or "not_set" }} | Review: {{ handoff.review_outcome or "not_set" }}</p>

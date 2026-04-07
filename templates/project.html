@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 {% set handoff = summary.latest_handoff %}
-{% set review_needed = summary.governance.confirm_waiting and handoff and summary.governance.pending_handoff_id == handoff.handoff_id %}
+{% set review_needed = summary.next_step.state == "review_needed" %}
 <section class="hero">
   <div class="eyebrow">Workspace Overview</div>
   <h1>{{ summary.project.project_name }}</h1>
@@ -12,7 +12,7 @@
     <div class="stat">Work type: {{ summary.state.project_type_label }}</div>
     <div class="stat">Current progress: {{ summary.governance.latest_review }}</div>
     <div class="stat">Suggested next owner: {{ summary.next_role or "n/a" }}</div>
-    <div class="stat">Current style: {{ summary.state.collaboration_style }}</div>
+    <div class="stat">Organized materials: {{ summary.materials.organized_material_count }}</div>
   </div>
   {% if handoff_status == "waiting_confirmation" %}
   <p class="muted">The next suggested step is waiting for a confirmation review before it can start.</p>
@@ -36,10 +36,15 @@
       <p>{{ summary.project.goal }}</p>
     </div>
     <h2>Available Materials</h2>
+    <div class="list-card">
+      <strong>Material status</strong>
+      <p>{{ summary.materials.summary }}</p>
+      <p class="muted">Knowledge items: {{ summary.materials.knowledge_count }} | Material groups: {{ summary.materials.research_group_count }}</p>
+    </div>
     {% for item in summary.state.research_slots %}
     <span class="tag">{{ item }}</span>
     {% endfor %}
-    <p><a href="/projects/{{ project_id }}/knowledge">Open Materials Center</a></p>
+    <p><a href="/projects/{{ project_id }}/knowledge">Open Materials Center</a> | <a href="/projects/{{ project_id }}/knowledge#organize-materials">Organize Materials</a></p>
   </article>
   <article class="panel">
     <h2>Current Progress</h2>
@@ -58,8 +63,8 @@
       <strong>{{ handoff.next_role_recommendation }}</strong>
       <p class="muted">{{ handoff.next_role_reason }}</p>
       <p class="muted">Why the system recommends this: {{ summary.why_next_role }}</p>
+      <p>{{ summary.next_step.message }}</p>
       {% if review_needed %}
-      <p>This next step needs a review before it can start.</p>
       <p class="muted">Use ordinary work language here: continue if ready, ask for changes if it needs another pass, or replan if the direction itself is wrong.</p>
       <form method="post" action="/projects/{{ project_id }}/handoffs/{{ handoff.handoff_id }}/review">
         <input type="hidden" name="return_to" value="project" />
@@ -70,18 +75,9 @@
           <button type="submit" name="action" value="replan_required">Replan</button>
         </p>
       </form>
-      {% elif handoff.acceptance_status == "approved" %}
-      <p>This next step is approved and ready to start.</p>
+      {% elif summary.next_step.state == "ready" %}
       <form method="post" action="/projects/{{ project_id }}/handoffs/{{ handoff.handoff_id }}/advance">
-        <p><button type="submit">Start Suggested Next Step</button></p>
-      </form>
-      {% elif handoff.acceptance_status == "changes_requested" %}
-      <p>This work needs another pass before moving on.</p>
-      {% elif handoff.acceptance_status == "replan_required" %}
-      <p>This work should be replanned before moving on.</p>
-      {% else %}
-      <form method="post" action="/projects/{{ project_id }}/handoffs/{{ handoff.handoff_id }}/advance">
-        <p><button type="submit">Start Suggested Next Step</button></p>
+        <p><button type="submit">{{ summary.next_step.primary_label }}</button></p>
       </form>
       {% endif %}
       <p class="muted">Advanced status: {{ handoff.acceptance_status or "not_set" }} | Review: {{ handoff.review_outcome or "not_set" }}</p>
@@ -122,7 +118,7 @@
 
 <section class="panel">
   <h2>Advanced Workspace Tools</h2>
-  <p class="muted">Use these when you need deeper workflow, review, decision, or governance controls.</p>
+  <p class="muted">Use these when you need deeper workflow, review history, decision, or governance controls.</p>
   <p>
     <a href="/projects/{{ project_id }}/workflow">Advanced Workflow</a> |
     <a href="/projects/{{ project_id }}/decisions">Important Decisions</a> |
