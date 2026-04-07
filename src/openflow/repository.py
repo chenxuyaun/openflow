@@ -631,6 +631,30 @@ class OpenFlowRepository:
             grouped.setdefault(key, []).append(item.model_dump(mode="json"))
         return grouped
 
+    def _decision_signal_summary(self, state: ProjectState) -> dict[str, int]:
+        decision_status = {decision.decision_id: decision.status for decision in state.decisions}
+        linked_items = [item for item in state.knowledge_items if item.decision_ids]
+        supported = 0
+        conflicted = 0
+        unresolved = 0
+        for item in linked_items:
+            statuses = [decision_status.get(decision_id) for decision_id in item.decision_ids if decision_id in decision_status]
+            if not statuses:
+                unresolved += 1
+                continue
+            if any(status in {"rejected", "deferred"} for status in statuses):
+                conflicted += 1
+            elif any(status in {"accepted", "adopted"} for status in statuses):
+                supported += 1
+            else:
+                unresolved += 1
+        return {
+            "linked_items": len(linked_items),
+            "supported_items": supported,
+            "conflicted_items": conflicted,
+            "unresolved_items": unresolved,
+        }
+
     def _project_stage(
         self,
         state: ProjectState,
@@ -657,6 +681,7 @@ class OpenFlowRepository:
         materials: dict[str, object],
         blocked_now: Optional[str],
     ) -> dict[str, object]:
+        decision_signals = self._decision_signal_summary(state)
         if governance.get("confirm_waiting") and latest_handoff:
             return {
                 "recommended_role": latest_handoff.next_role_recommendation,
@@ -687,22 +712,43 @@ class OpenFlowRepository:
             }
         if blocked_now:
             blocked_task = next((task for task in state.task_tree if task.blocked_reason), None)
+            action = "open_details"
+            confidence = "medium"
+            secondary_note = "A blocked task is currently preventing a cleaner next-step recommendation."
+            if blocked_task and blocked_task.governance_source == "confirm_gate_review":
+                action = "continue_review"
+                confidence = "high"
+                secondary_note = f"This block comes from governance state: {blocked_task.governance_source}."
             return {
                 "recommended_role": blocked_task.owner_role if blocked_task else (latest_handoff.next_role_recommendation if latest_handoff else state.role_catalog[0].role_name),
                 "recommended_reason": blocked_now,
-                "recommended_action": "open_details",
-                "recommendation_confidence": "medium",
+                "recommended_action": action,
+                "recommendation_confidence": confidence,
                 "recommendation_source": "blocked_task",
-                "secondary_note": "A blocked task is currently preventing a cleaner next-step recommendation.",
+                "secondary_note": secondary_note,
+            }
+        if decision_signals["conflicted_items"] > 0:
+            review_role = "Review Operator" if any(role.role_name == "Review Operator" for role in state.role_catalog) else state.role_catalog[0].role_name
+            return {
+                "recommended_role": review_role,
+                "recommended_reason": "Some decision-linked materials are deferred or rejected, so the workspace should review the direction before continuing.",
+                "recommended_action": "open_details",
+                "recommendation_confidence": "high",
+                "recommendation_source": "decision_conflict",
+                "secondary_note": f"Conflicting decision-linked materials: {decision_signals['conflicted_items']}.",
             }
         if latest_handoff:
+            confidence = "high"
+            secondary_note = "This recommendation comes from the latest completed handoff."
+            if decision_signals["supported_items"] > 0:
+                secondary_note = f"{secondary_note} Decision-supported materials: {decision_signals['supported_items']}."
             return {
                 "recommended_role": latest_handoff.next_role_recommendation,
                 "recommended_reason": latest_handoff.next_role_reason,
                 "recommended_action": "start",
-                "recommendation_confidence": "high",
+                "recommendation_confidence": confidence,
                 "recommendation_source": "latest_handoff",
-                "secondary_note": "This recommendation comes from the latest completed handoff.",
+                "secondary_note": secondary_note,
             }
         research_role_exists = any(role.role_name == "Research Curator" for role in state.role_catalog)
         if research_role_exists and materials["organized_material_count"] > 0 and materials["raw_source_count"] >= materials["synthesized_count"]:
@@ -718,6 +764,8 @@ class OpenFlowRepository:
             secondary_note = f"Current organized materials: {materials['organized_material_count']}."
             if materials["linked_count"] > 0:
                 secondary_note = f"{secondary_note} Decision-linked materials: {materials['linked_count']}."
+            if decision_signals["supported_items"] > 0:
+                secondary_note = f"{secondary_note} Supported decision-linked materials: {decision_signals['supported_items']}."
             return {
                 "recommended_role": "Research Curator",
                 "recommended_reason": "This workspace is research-led and should organize materials before the next execution step.",
@@ -755,6 +803,20 @@ class OpenFlowRepository:
                 "message": "No suggested next step has been written yet.",
                 "actions": ["start_first_step"],
                 "primary_label": "Start First Work Step",
+            }
+        if recommendation["recommended_action"] == "continue_review":
+            return {
+                "state": "review_needed",
+                "message": "This next step needs a review before it can start.",
+                "actions": ["continue", "needs_changes", "replan"],
+                "primary_label": "Continue",
+            }
+        if recommendation["recommended_action"] == "open_details":
+            return {
+                "state": "blocked",
+                "message": "This workspace should resolve the current block before starting the next step.",
+                "actions": ["open_details"],
+                "primary_label": "Open Details",
             }
         if governance.get("confirm_waiting"):
             return {

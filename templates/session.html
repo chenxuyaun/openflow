@@ -99,6 +99,8 @@
       <form method="post" action="/projects/{{ project_id }}/handoffs/{{ handoff.handoff_id }}/advance">
         <p><button type="submit">{{ payload.next_step.primary_label }}</button></p>
       </form>
+      {% elif payload.next_step.state == "blocked" %}
+      <p><a href="/projects/{{ project_id }}/tasks">{{ payload.next_step.primary_label }}</a></p>
       {% endif %}
       <p class="muted">Advanced status: {{ handoff.acceptance_status or "not_set" }} | Review: {{ handoff.review_outcome or "not_set" }}</p>
       {% if handoff.review_note %}

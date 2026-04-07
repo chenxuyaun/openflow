@@ -58,6 +58,9 @@
       <form method="post" action="/projects/{{ project_id }}/handoffs/{{ handoff.handoff_id }}/advance">
         <p><button type="submit">Continue Recommended Step</button></p>
       </form>
+      {% elif next_step.state == "blocked" %}
+      <p class="muted">This next step is blocked right now. Open the workspace to inspect the blocking detail.</p>
+      <p><a href="/projects/{{ project_id }}">Open Workspace</a></p>
       {% else %}
       <p><a href="/projects/{{ project_id }}">Open Workspace</a></p>
       {% endif %}

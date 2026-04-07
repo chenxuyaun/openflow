@@ -85,6 +85,8 @@
       </form>
       {% elif summary.next_step.state == "research_gap" %}
       <p><a href="/projects/{{ project_id }}/knowledge#organize-materials">{{ summary.next_step.primary_label }}</a></p>
+      {% elif summary.next_step.state == "blocked" %}
+      <p><a href="/projects/{{ project_id }}/tasks">{{ summary.next_step.primary_label }}</a></p>
       {% elif summary.next_step.state == "none" %}
       <p class="muted">No handoff is ready yet. Start the first work step from the workspace or organize materials first.</p>
       {% endif %}

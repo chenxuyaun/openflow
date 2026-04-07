@@ -961,6 +961,90 @@ def test_replan_required_updates_recommendation_to_replan_role() -> None:
     assert "Research Curator" in project_page.text or "Bootstrap Strategist" in project_page.text
 
 
+def test_decision_conflict_changes_recommendation_to_review() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Advance work only when supporting decisions are still valid.",
+            "initial_prompt": "Need decision-linked materials that can force a review when direction changes.",
+            "project_name": "Decision Conflict Demo",
+        },
+    )
+    project_id = bootstrap_response.json()["project_id"]
+    project_payload = client.get("/project", params={"project_id": project_id}).json()
+    decision_id = project_payload["state"]["decisions"][0]["decision_id"]
+
+    ingest_response = client.post(
+        "/research-packs",
+        json={
+            "project_id": project_id,
+            "pack_title": "Decision conflict notes",
+            "source_family": "workflow_handoff_methods",
+            "source_ref": "decision-conflict",
+            "raw_notes": "Raw notes tied to an important decision.",
+            "synthesized_summary": "This direction depends on a decision that may no longer hold.",
+            "decision_ids": [decision_id],
+        },
+    )
+    assert ingest_response.status_code == 200
+
+    update_response = client.post(
+        f"/projects/{project_id}/decisions/{decision_id}",
+        json={"status": "deferred"},
+    )
+    assert update_response.status_code == 200
+
+    project_page = client.get(f"/projects/{project_id}")
+    assert project_page.status_code == 200
+    assert "Review Operator" in project_page.text
+    assert "deferred or rejected" in project_page.text
+    assert "Conflicting decision-linked materials: 2." in project_page.text
+
+
+def test_governance_blocked_task_does_not_offer_direct_start() -> None:
+    landing_response = client.post(
+        "/",
+        data={
+            "project_name": "Governance Block Demo",
+            "goal": "Implement work only after governance review.",
+            "initial_prompt": "Create an implementation-heavy project where the next step should be blocked by governance until reviewed.",
+        },
+        follow_redirects=False,
+    )
+    project_id = landing_response.headers["location"].split("/")[-2]
+
+    session_create_response = client.post(
+        f"/projects/{project_id}/sessions",
+        data={
+            "role_name": "Implementation Lead",
+            "objective": "Create a handoff with a governance block.",
+            "input_files": f"projects/{project_id}/workflow_graph.json",
+        },
+        follow_redirects=False,
+    )
+    session_id = session_create_response.headers["location"].rsplit("/", 1)[-1]
+
+    complete_response = client.post(
+        f"/projects/{project_id}/sessions/{session_id}/complete",
+        data={
+            "session_summary": "Completed the execution step but governance must inspect a blocked task first.",
+            "next_role_recommendation": "Review Operator",
+            "next_role_reason": "Review should continue next.",
+            "required_input_files": f"projects/{project_id}/sessions/{session_id}/handoff.json",
+            "task_status_changes": "implementation-slice=waiting_confirmation:Governance review must clear this task first.",
+            "followup_actions": "Inspect the blocked task before advancing.",
+        },
+        follow_redirects=False,
+    )
+    assert complete_response.status_code == 303
+
+    project_page = client.get(f"/projects/{project_id}")
+    assert project_page.status_code == 200
+    assert "This workspace should resolve the current block before starting the next step." in project_page.text
+    assert "Open Details" in project_page.text
+    assert "Start Suggested Next Step" not in project_page.text
+
+
 def test_session_review_form_redirects_back_with_feedback() -> None:
     bootstrap_response = client.post(
         "/projects/bootstrap",
