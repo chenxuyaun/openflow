@@ -76,7 +76,7 @@ projects coherent later:
 The Alpha release should let a user:
 
 - start a workspace from a natural-language goal
-- inspect the generated work structure
+- inspect the generated work structure through a simple default workspace
 - follow a work step through handoff and review
 - see materials, decisions, and timelines remain connected
 - open advanced workflow and governance views when needed

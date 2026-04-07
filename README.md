@@ -101,8 +101,13 @@ python -m pytest -q
 - Clear next-step guidance and recoverable project memory
 - Explainable governance through reviews, decisions, and timelines
 - Usable both as a simple work workspace and as an advanced coordination system
+- Default workspace view centered on current goal, available materials, current progress, and suggested next step
 
 ## Beta Boundary
 
 Alpha intentionally stops at the core workspace loop. Deferred follow-on work is
 tracked in `docs/beta_backlog.md`.
+
+## Release Notes
+
+See `docs/alpha_release_notes.md` for the Alpha package summary.

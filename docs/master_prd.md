@@ -29,8 +29,8 @@ interface model:
 - simple layer for ordinary users:
   - workspace
   - materials
+  - current progress
   - work steps
-  - work board
   - next step
 - advanced layer for governance-oriented users:
   - workflow graph
@@ -119,6 +119,7 @@ interface model:
 - Research pack ingest and batch ingest
 - Decision registry with status updates
 - Explainable project timeline
+- Default workspace view focused on goal, materials, progress, and next step
 
 ## 9. Alpha Non-Goals
 

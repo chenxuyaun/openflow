@@ -7,6 +7,7 @@
 - Project pages use dual-layer language:
   - simple work language by default
   - advanced governance language when needed
+- Default workspace highlights current goal, available materials, current progress, and suggested next step
 
 ## Core Flow
 
@@ -20,7 +21,7 @@
 
 ## Knowledge And Decisions
 
-- Knowledge center shows project knowledge items
+- Materials center shows project knowledge items
 - Research pack ingest works
 - Batch research pack ingest works
 - Decision registry displays supporting knowledge
@@ -28,7 +29,7 @@
 
 ## Explainability
 
-- Dashboard shows `Why The Project Is Here Now`
+- Dashboard shows `Why This Step Is Recommended`
 - Timeline events include `because`
 - Work board shows governance-driven status explanations
 - Work step detail explains why the step exists
@@ -44,3 +45,4 @@
 - Product hook matches landing direction
 - PRD matches current Alpha scope
 - Beta-only expansion items are moved to `docs/beta_backlog.md`
+- `docs/alpha_release_notes.md` summarizes the shipped Alpha package
