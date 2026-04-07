@@ -1,0 +1,60 @@
+{
+  "product_claims": [
+    {
+      "claim_id": "claim-001",
+      "statement": "Every role gets a fresh session and project continuity comes from files.",
+      "supports": {
+        "documents": [
+          "docs/product_hook.md",
+          "docs/master_prd.md",
+          "docs/taxonomy.md"
+        ],
+        "workflow_stages": ["bootstrap", "delivery", "review"],
+        "api_routes": ["/project", "/knowledge", "/workflow", "/blueprint"],
+        "pages": ["project_dashboard", "session_detail", "knowledge_center"],
+        "landing_sections": ["hero", "mechanism"],
+        "demo_sections": ["opening_frame", "role_session_proof"],
+        "decisions": ["dec-001", "dec-002", "dec-007"],
+        "types": ["SessionRecord", "HandoffRecord", "ProjectState"]
+      }
+    },
+    {
+      "claim_id": "claim-002",
+      "statement": "OpenFlow turns vague goals into visible roles, tasks, and handoffs.",
+      "supports": {
+        "documents": [
+          "docs/product_hook.md",
+          "docs/master_prd.md",
+          "docs/landing_blueprint.md",
+          "docs/demo_flow.md"
+        ],
+        "workflow_stages": ["bootstrap", "architecture", "delivery"],
+        "api_routes": ["/project", "/workflow", "/blueprint"],
+        "pages": ["landing", "workflow_graph", "task_board", "project_dashboard"],
+        "landing_sections": ["mechanism", "workflow_preview", "v1_promise"],
+        "demo_sections": ["mechanism", "visible_transformation", "closing_promise"],
+        "decisions": ["dec-003", "dec-004", "dec-006"],
+        "types": ["WorkflowGraph", "TaskNode", "RoleInstanceSpec"]
+      }
+    },
+    {
+      "claim_id": "claim-003",
+      "statement": "The product is attractive because it is both auditable for teams and clear for users.",
+      "supports": {
+        "documents": [
+          "docs/product_hook.md",
+          "docs/landing_blueprint.md",
+          "docs/master_prd.md",
+          "docs/demo_flow.md"
+        ],
+        "workflow_stages": ["review", "research"],
+        "api_routes": ["/knowledge", "/workflow", "/blueprint"],
+        "pages": ["landing", "knowledge_center", "workflow_graph"],
+        "landing_sections": ["problem", "why_it_wins", "v1_promise"],
+        "demo_sections": ["knowledge_and_auditability", "safety_and_governance"],
+        "decisions": ["dec-004", "dec-005", "dec-006"],
+        "types": ["KnowledgeItem", "DecisionRecord", "ProjectState"]
+      }
+    }
+  ]
+}

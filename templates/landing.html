@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <div class="eyebrow">Project Operating System</div>
+  <h1>Every role gets a fresh session. Your project never loses context.</h1>
+  <p class="muted">
+    OpenFlow turns messy goals into visible workflows, reusable knowledge, and auditable handoffs.
+  </p>
+  <div class="statline">
+    {% for point in proof_points %}
+    <div class="stat">{{ point }}</div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="grid">
+  <article class="panel">
+    <h2>Why It Works</h2>
+    <p>OpenFlow makes files, decisions, workflows, and handoffs the source of truth instead of hidden chat context.</p>
+    <div>
+      {% for section in blueprint.landing_sections %}
+      <span class="tag">{{ section }}</span>
+      {% endfor %}
+    </div>
+  </article>
+  <article class="panel">
+    <h2>Visible Proof Chain</h2>
+    <p>The same blueprint drives landing, walkthrough, task board, session detail, and governance states.</p>
+    <div>
+      {% for section in blueprint.demo_sections %}
+      <span class="tag">{{ section }}</span>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+
+<section class="panel">
+  <h2>Start A Project</h2>
+  <form method="post" action="/">
+    <p><label>Project name<br /><input type="text" name="project_name" style="width:100%" value="OpenFlow Project" /></label></p>
+    <p><label>Goal<br /><input type="text" name="goal" style="width:100%" value="Turn an idea into a role-driven project." /></label></p>
+    <p><label>Initial prompt<br /><textarea name="initial_prompt" style="width:100%;min-height:110px">Create a project workflow, knowledge base, and first role session.</textarea></label></p>
+    <p><button type="submit">Bootstrap Project</button></p>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>What You Will See Immediately</h2>
+  <div class="grid">
+    <div class="list-card">
+      <strong>1. Bootstrap modeling</strong>
+      <p>Goal becomes roles, tasks, workflow, research slots, and execution priorities.</p>
+    </div>
+    <div class="list-card">
+      <strong>2. Fresh-session proof</strong>
+      <p>Each role starts clean and reads declared files instead of hidden context.</p>
+    </div>
+    <div class="list-card">
+      <strong>3. Governance proof</strong>
+      <p>Handoffs, confirm gates, and reviews explain why the next step is allowed or blocked.</p>
+    </div>
+    <div class="list-card">
+      <strong>4. Durable memory proof</strong>
+      <p>Knowledge center and timeline keep decisions, evidence, and project evolution visible.</p>
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Product Claims</h2>
+  {% for claim in blueprint.claims %}
+  <div class="list-card">
+    <h3>{{ claim.statement }}</h3>
+    <p class="muted">Pages: {{ claim.supports.pages|join(", ") }}</p>
+    <p class="muted">Workflow stages: {{ claim.supports.workflow_stages|join(", ") }}</p>
+  </div>
+  {% endfor %}
+</section>
+{% endblock %}

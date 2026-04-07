@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <div class="eyebrow">Session Detail</div>
+  <h1>{{ payload.session.role_name }}</h1>
+  <p>{{ payload.session.objective }}</p>
+  <p class="muted">Session ID: <code>{{ payload.session.session_id }}</code></p>
+  <div class="statline">
+    <div class="stat">Fresh session</div>
+    <div class="stat">Declared inputs: {{ payload.session.input_files|length }}</div>
+    <div class="stat">Transcript entries: {{ payload.transcript|length }}</div>
+  </div>
+  {% if handoff_status == "advanced" %}
+  <p class="muted">Handoff advanced and the next session was created.</p>
+  {% endif %}
+</section>
+
+<section class="grid">
+  <article class="panel">
+    <h2>Input Files</h2>
+    {% if payload.session.input_files %}
+    <ul>
+      {% for item in payload.session.input_files %}
+      <li><code>{{ item }}</code></li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">No input files declared.</p>
+    {% endif %}
+    <h2>Transcript</h2>
+    <p class="muted">{{ payload.transcript|length }} transcript entries</p>
+    <p class="muted">This role starts from files and records, not inherited hidden chat context.</p>
+  </article>
+  <article class="panel">
+    <h2>Handoff</h2>
+    {% if payload.handoff %}
+    <div class="list-card">
+      <strong>{{ payload.handoff.next_role_recommendation }}</strong>
+      <p class="muted">{{ payload.handoff.next_role_reason }}</p>
+      <p class="muted">Acceptance: {{ payload.handoff.acceptance_status or "not_set" }} · Review: {{ payload.handoff.review_outcome or "not_set" }}</p>
+      {% if payload.handoff.success_criteria %}
+      <p>Acceptance criteria: {{ payload.handoff.success_criteria|join(", ") }}</p>
+      {% endif %}
+      {% if payload.handoff.risks %}
+      <p>Risks: {{ payload.handoff.risks|join(", ") }}</p>
+      {% endif %}
+      {% if payload.handoff.followup_actions %}
+      <p>Follow-up: {{ payload.handoff.followup_actions|join(", ") }}</p>
+      {% endif %}
+      <form method="post" action="/projects/{{ project_id }}/handoffs/{{ payload.handoff.handoff_id }}/advance">
+        <p><button type="submit">Advance Handoff</button></p>
+      </form>
+    </div>
+    {% else %}
+    <p class="muted">No handoff written yet.</p>
+    {% endif %}
+  </article>
+</section>
+
+<section class="panel">
+  <h2>Complete Session</h2>
+  <form method="post" action="/projects/{{ project_id }}/sessions/{{ payload.session.session_id }}/complete">
+    <p><label>Session summary<br /><textarea name="session_summary" style="width:100%;min-height:110px">Summarize the session outcome and what changed.</textarea></label></p>
+    <p><label>Next role recommendation<br /><input type="text" name="next_role_recommendation" style="width:100%" value="Review Operator" /></label></p>
+    <p><label>Next role reason<br /><textarea name="next_role_reason" style="width:100%;min-height:80px">A review pass is needed before advancing.</textarea></label></p>
+    <p><label>Required input files<br /><textarea name="required_input_files" style="width:100%;min-height:80px">projects/{{ project_id }}/sessions/{{ payload.session.session_id }}/handoff.json</textarea></label></p>
+    <p><label>Success criteria<br /><textarea name="success_criteria" style="width:100%;min-height:80px">Review the evidence
+Decide whether to advance</textarea></label></p>
+    <p><label>Risks<br /><textarea name="risks" style="width:100%;min-height:70px">The review may trigger replanning.</textarea></label></p>
+    <p><label>Task status changes<br /><textarea name="task_status_changes" style="width:100%;min-height:80px">implementation-slice=completed</textarea></label></p>
+    <p><label>Review outcome<br /><input type="text" name="review_outcome" style="width:100%" value="pass" /></label></p>
+    <p><label>Acceptance status<br /><input type="text" name="acceptance_status" style="width:100%" value="accepted" /></label></p>
+    <p><label>Follow-up actions<br /><textarea name="followup_actions" style="width:100%;min-height:70px">Start the recommended next role.</textarea></label></p>
+    <p><label>Transcript note<br /><textarea name="transcript_note" style="width:100%;min-height:80px">Record the most important execution note from this session.</textarea></label></p>
+    <p><button type="submit">Complete Session And Write Handoff</button></p>
+  </form>
+</section>
+{% endblock %}

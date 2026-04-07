@@ -54,5 +54,23 @@
     "workflow_graph",
     "session_detail",
     "task_board"
+  ],
+  "landing_sections": [
+    "hero",
+    "problem",
+    "mechanism",
+    "workflow_preview",
+    "why_it_wins",
+    "v1_promise"
+  ],
+  "demo_sections": [
+    "opening_frame",
+    "failure_mode",
+    "mechanism",
+    "visible_transformation",
+    "role_session_proof",
+    "knowledge_and_auditability",
+    "safety_and_governance",
+    "closing_promise"
   ]
 }

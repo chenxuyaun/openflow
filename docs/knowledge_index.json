@@ -64,5 +64,27 @@
     "reliability": "medium",
     "relevance": "high",
     "open_questions": ["How strict should handoff validation be in the first release?"]
+  },
+  {
+    "knowledge_id": "ki-007",
+    "title": "The landing story must match the execution model",
+    "source_type": "doc",
+    "source_ref": "docs/product_hook.md",
+    "summary": "The public-facing first impression should derive from the same product hook and workflow model used internally.",
+    "themes": ["landing_conversion", "product_narrative", "workflow_governance"],
+    "reliability": "high",
+    "relevance": "high",
+    "open_questions": ["Which workflow step should be shown in the first visual preview?"]
+  },
+  {
+    "knowledge_id": "ki-008",
+    "title": "A narrated demo should reuse the same claims as the landing and PRD",
+    "source_type": "doc",
+    "source_ref": "docs/demo_flow.md",
+    "summary": "The product walkthrough should use the same promise, mechanism, and governance story as the blueprint package.",
+    "themes": ["demo_conversion", "landing_conversion", "product_narrative"],
+    "reliability": "high",
+    "relevance": "high",
+    "open_questions": ["Which step should be the first proof moment in the demo?"]
   }
 ]

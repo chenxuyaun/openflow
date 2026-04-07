@@ -50,6 +50,12 @@ The first compelling experience is simple: a user sees their messy idea turned
 into a visible workflow, a knowledge base, and a clear next role instead of yet
 another long conversation thread.
 
+## Why Teams Stay
+
+The same mechanism that attracts a user on day one is what keeps a team aligned
+later: every role can prove what it read, what it changed, and why the next
+role should take over.
+
 ## Promise For Teams And Builders
 
 - Fewer lost decisions
@@ -62,3 +68,14 @@ another long conversation thread.
 In the first release, OpenFlow should let a user bootstrap a project, inspect
 its knowledge base, review the workflow graph, open a role session, and see the
 handoff that drives the next role.
+
+## Direct Conversion To Landing
+
+This document is the source for the landing page hero, problem statement,
+workflow preview, and V1 promise. The landing page should not introduce a new
+story that conflicts with this hook.
+
+## Direct Conversion To Demo
+
+This hook also anchors the demo sequence: opening promise, problem framing,
+visible workflow transformation, isolated session proof, and closing V1 promise.

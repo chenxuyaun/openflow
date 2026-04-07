@@ -1,20 +1,27 @@
 # OpenFlow
 
-OpenFlow is a web-first workflow engine for role-based AI sessions that do not
-share runtime context. Each new session reads project files, decisions, and
-handoff records from disk instead of inheriting chat history in memory.
+OpenFlow is a file-driven workflow runtime for role-based AI delivery. Every
+role runs in a fresh session. Previous chats are not implicit context; they are
+turned into files, handoffs, knowledge items, and indexed project records that
+the next role can inspect explicitly.
 
-## Milestone 1
+## Current Scope
 
-This repository currently implements the first milestone only:
+- FastAPI app with JSON APIs and server-rendered Jinja pages
+- Project bootstrap from `goal + initial_prompt`
+- Dynamic role catalog, task tree, and workflow graph generation
+- File-backed session storage with SQLite indexing
+- Session completion and handoff advancement
+- Knowledge center fed by docs, project artifacts, transcript summaries, and git
+- Project timeline that surfaces bootstrap, sessions, handoffs, knowledge ingest,
+  and git evolution
 
-- Python project scaffold
-- FastAPI application entrypoint
-- Core domain models for workflow bootstrap and session handoff
-- Minimal HTTP API for health, project, knowledge, and workflow inspection
-- Docs-backed knowledge index, decisions, and blueprint documents
-- Product hook and expanded PRD/research package
-- Pytest coverage for the initial contract
+## Product Model
+
+- Every role is a new session.
+- Durable memory lives in files, not runtime chat context.
+- Handoffs carry the minimum structured package needed for the next role.
+- Knowledge items and timeline events make project evolution inspectable.
 
 ## Project Layout
 
@@ -22,14 +29,26 @@ This repository currently implements the first milestone only:
 src/openflow/
   app.py
   models.py
+  repository.py
   service.py
+templates/
+  base.html
+  landing.html
+  project.html
+  knowledge.html
+  workflow.html
+  session.html
 docs/
   product_hook.md
+  taxonomy.md
+  landing_blueprint.md
+  demo_flow.md
   master_prd.md
   research_master_outline.md
   knowledge_index.json
   decision_registry.json
   workflow_blueprint.json
+  blueprint_alignment.json
 tests/
   test_app.py
 ```
@@ -43,11 +62,12 @@ python -m uvicorn openflow.app:app --app-dir src --reload
 ## Verify
 
 ```powershell
-pytest -q
+python -m pytest -q
+python -m py_compile src/openflow/app.py src/openflow/models.py src/openflow/service.py src/openflow/repository.py
 ```
 
-## Next Milestones
+## Next Slice
 
-- Persist project/session state to files and SQLite
-- Generate bootstrap workflow graphs from an initial request
-- Write structured handoff records for each new role session
+- Enrich request-driven planning with deeper dependency and risk modeling
+- Expand transcript and handoff synthesis into more explicit decision/task state
+- Add richer approval workflows for confirm-gated stages

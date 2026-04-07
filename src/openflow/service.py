@@ -3,11 +3,16 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from openflow.repository import OpenFlowRepository
 from openflow.models import (
+    BootstrapRequest,
     DecisionRecord,
+    HandoffRecord,
     KnowledgeItem,
     ProjectState,
     RoleInstanceSpec,
+    SessionCompleteRequest,
+    SessionCreateRequest,
     SessionRecord,
     SessionStatus,
     SourceType,
@@ -20,6 +25,7 @@ from openflow.models import (
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 DOCS_DIR = ROOT_DIR / "docs"
+repository = OpenFlowRepository(ROOT_DIR, DOCS_DIR)
 
 
 def _load_json_file(path: Path) -> object:
@@ -39,6 +45,11 @@ def load_decisions() -> list[DecisionRecord]:
 
 def load_workflow_blueprint() -> dict[str, object]:
     payload = _load_json_file(DOCS_DIR / "workflow_blueprint.json")
+    return dict(payload)
+
+
+def load_blueprint_alignment() -> dict[str, object]:
+    payload = _load_json_file(DOCS_DIR / "blueprint_alignment.json")
     return dict(payload)
 
 
@@ -126,6 +137,8 @@ def build_knowledge_summary() -> dict[str, object]:
         "project_id": state.project_id,
         "themes": [
             "product_narrative",
+            "landing_conversion",
+            "demo_conversion",
             "role_orchestration",
             "session_isolation",
             "handoff_governance",
@@ -137,11 +150,15 @@ def build_knowledge_summary() -> dict[str, object]:
         "decisions": [item.model_dump(mode="json") for item in state.decisions],
         "documents": [
             "docs/product_hook.md",
+            "docs/landing_blueprint.md",
+            "docs/demo_flow.md",
+            "docs/taxonomy.md",
             "docs/master_prd.md",
             "docs/research_master_outline.md",
             "docs/knowledge_index.json",
             "docs/decision_registry.json",
             "docs/workflow_blueprint.json",
+            "docs/blueprint_alignment.json",
         ],
     }
 
@@ -155,3 +172,72 @@ def build_workflow_summary() -> dict[str, object]:
         "workflow_graph": state.workflow_graph.model_dump(mode="json"),
         "role_catalog": [role.model_dump(mode="json") for role in state.role_catalog],
     }
+
+
+def build_blueprint_package() -> dict[str, object]:
+    state = build_default_project_state()
+    workflow = load_workflow_blueprint()
+    alignment = load_blueprint_alignment()
+    return {
+        "project_id": state.project_id,
+        "hook_documents": [
+            "docs/product_hook.md",
+            "docs/landing_blueprint.md",
+            "docs/demo_flow.md",
+            "docs/taxonomy.md",
+            "docs/master_prd.md",
+        ],
+        "workflow_pages": workflow.get("page_flow", []),
+        "landing_sections": workflow.get("landing_sections", []),
+        "demo_sections": workflow.get("demo_sections", []),
+        "claims": alignment.get("product_claims", []),
+        "decisions": [item.model_dump(mode="json") for item in state.decisions],
+    }
+
+
+def create_project(request: BootstrapRequest) -> dict[str, object]:
+    payload = repository.bootstrap_project(request)
+    return {
+        "project_id": payload["project_id"],
+        "session_id": payload["session_id"],
+        "project_name": payload["project_name"],
+        "state": payload["project_state"].model_dump(mode="json"),
+    }
+
+
+def create_project_session(request: SessionCreateRequest) -> dict[str, object]:
+    session = repository.create_session(request)
+    return session.model_dump(mode="json")
+
+
+def complete_project_session(session_id: str, request: SessionCompleteRequest) -> dict[str, object]:
+    handoff = repository.complete_session(session_id, request)
+    return handoff.model_dump(mode="json")
+
+
+def advance_project_handoff(handoff_id: str) -> dict[str, object]:
+    return repository.advance_handoff(handoff_id)
+
+
+def get_project_state(project_id: str) -> dict[str, object]:
+    return repository.get_project_summary(project_id)
+
+
+def get_project_knowledge(project_id: str) -> dict[str, object]:
+    return repository.get_project_knowledge(project_id)
+
+
+def get_project_workflow(project_id: str) -> dict[str, object]:
+    return repository.get_project_workflow(project_id)
+
+
+def get_project_tasks(project_id: str) -> dict[str, object]:
+    return repository.get_project_tasks(project_id)
+
+
+def get_project_session_detail(project_id: str, session_id: str) -> dict[str, object]:
+    return repository.get_session_detail(project_id, session_id)
+
+
+def get_project_timeline(project_id: str) -> dict[str, object]:
+    return repository.get_project_timeline(project_id)

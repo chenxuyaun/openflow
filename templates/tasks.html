@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <div class="eyebrow">Task Board</div>
+  <h1>Tasks for {{ project_id }}</h1>
+  <p class="muted">Ownership, dependencies, execution status, and evidence are visible here.</p>
+  <div class="statline">
+    <div class="stat">Mode: {{ payload.project_mode }}</div>
+    <div class="stat">Attraction: {{ payload.attraction_focus }}</div>
+    <div class="stat">Planned: {{ payload.counts.planned }}</div>
+    <div class="stat">Active: {{ payload.counts.active }}</div>
+    <div class="stat">Waiting: {{ payload.counts.waiting_confirmation }}</div>
+    <div class="stat">Completed: {{ payload.counts.completed }}</div>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Execution Priorities</h2>
+  {% for item in payload.execution_priority %}
+  <span class="tag">{{ item }}</span>
+  {% endfor %}
+</section>
+
+<section class="panel">
+  <h2>Task Board</h2>
+  {% for task in payload.task_tree %}
+  <div class="list-card">
+    <strong>{{ task.title }}</strong>
+    <p class="muted">{{ task.task_id }} · {{ task.status }} · {{ task.owner_role }} · Priority {{ task.priority }}</p>
+    {% if task.depends_on %}
+    <p class="muted">Depends on: {{ task.depends_on|join(", ") }}</p>
+    {% endif %}
+    {% if task.success_criteria %}
+    <p>Success: {{ task.success_criteria|join(", ") }}</p>
+    {% endif %}
+    {% if task.blocked_reason %}
+    <p>Blocked: {{ task.blocked_reason }}</p>
+    {% endif %}
+    {% if task.evidence_refs %}
+    <p class="muted">Evidence: {{ task.evidence_refs|join(", ") }}</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+</section>
+{% endblock %}

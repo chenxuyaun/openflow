@@ -87,6 +87,7 @@ resumed from files.
 
 ## 8. UX Surfaces
 
+- Landing / first impression
 - Project dashboard
 - Knowledge center
 - Workflow graph
@@ -95,15 +96,26 @@ resumed from files.
 
 ## 9. Workflow And Page Flow
 
-1. User starts a project bootstrap request
-2. Bootstrap role creates workflow, role catalog, task tree, and research map
-3. Project dashboard shows current state and next role
-4. Knowledge center exposes source items, decisions, and unresolved questions
-5. Session detail shows declared inputs, outputs, and handoff
-6. Workflow graph shows the current stage, auto-advance paths, and confirm gates
-7. Task board shows ownership, dependencies, and blocked work
+1. Landing explains the problem, mechanism, and first-use promise
+2. User starts a project bootstrap request
+3. Bootstrap role creates workflow, role catalog, task tree, and research map
+4. Project dashboard shows current state and next role
+5. Knowledge center exposes source items, decisions, and unresolved questions
+6. Session detail shows declared inputs, outputs, and handoff
+7. Workflow graph shows the current stage, auto-advance paths, and confirm gates
+8. Task board shows ownership, dependencies, and blocked work
 
-## 10. API Skeleton
+## 10. Demo Flow
+
+1. Start from the landing promise and failure mode
+2. Show bootstrap turning a goal into visible workflow artifacts
+3. Show project dashboard and workflow graph as the first transformation
+4. Show session detail as proof of isolated, file-driven execution
+5. Show knowledge center as proof of auditability and continuity
+6. Show confirm gate and review loop as governance
+7. End on the V1 promise and next-step call to action
+
+## 11. API Skeleton
 
 - `POST /projects/bootstrap`
 - `GET /project`
@@ -113,7 +125,7 @@ resumed from files.
 - `POST /sessions/{id}/complete`
 - `POST /handoffs/{id}/advance`
 
-## 11. Core Types
+## 12. Core Types
 
 - `KnowledgeItem`
 - `DecisionRecord`
@@ -124,16 +136,18 @@ resumed from files.
 - `HandoffRecord`
 - `ProjectState`
 
-## 12. V1 Non-Goals
+## 13. V1 Non-Goals
 
 - Fully autonomous external tool execution
 - Realtime multiplayer editing
 - Heavy vector infrastructure as a requirement for first release
 
-## 13. Acceptance Criteria
+## 14. Acceptance Criteria
 
 - A new project can be bootstrapped into roles and tasks
 - Each role session is isolated and file-driven
 - Knowledge and progress are reconstructable from disk artifacts
 - Workflow transitions are inspectable and reviewable
 - Product narrative, research corpus, workflow graph, and API contract remain aligned
+- Landing narrative can be derived directly from the product hook and workflow blueprint
+- Demo flow can be derived directly from the same blueprint package without inventing new concepts

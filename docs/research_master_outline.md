@@ -24,6 +24,8 @@ team members can work from files rather than from implicit chat memory.
 ## Theme Index
 
 - Product narrative
+- Landing conversion
+- Demo conversion
 - Role orchestration
 - Session isolation
 - Handoff governance
@@ -54,3 +56,5 @@ Each research entry should answer:
 - Which product themes does it support or challenge?
 - What decision does it influence?
 - Is it adopted, rejected, or deferred for V1?
+- How does it affect the landing narrative or first-use flow?
+- How does it affect the demo flow or narrated walkthrough?

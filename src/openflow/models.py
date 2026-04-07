@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -70,9 +70,13 @@ class TaskNode(BaseModel):
     owner_role: str
     depends_on: List[str] = Field(default_factory=list)
     success_criteria: List[str] = Field(default_factory=list)
+    blocked_reason: Optional[str] = None
+    priority: str = "medium"
+    evidence_refs: List[str] = Field(default_factory=list)
 
 
 class SessionRecord(BaseModel):
+    project_id: str = "openflow-local"
     session_id: str
     role_name: str
     objective: str
@@ -82,6 +86,7 @@ class SessionRecord(BaseModel):
 
 
 class KnowledgeItem(BaseModel):
+    project_id: Optional[str] = None
     knowledge_id: str
     title: str
     source_type: SourceType
@@ -90,10 +95,15 @@ class KnowledgeItem(BaseModel):
     themes: List[str] = Field(default_factory=list)
     reliability: str
     relevance: str
+    decision_ids: List[str] = Field(default_factory=list)
+    session_id: Optional[str] = None
+    handoff_id: Optional[str] = None
+    generated_at: datetime = Field(default_factory=utc_now)
     open_questions: List[str] = Field(default_factory=list)
 
 
 class DecisionRecord(BaseModel):
+    project_id: Optional[str] = None
     decision_id: str
     title: str
     status: str
@@ -103,7 +113,11 @@ class DecisionRecord(BaseModel):
 
 
 class HandoffRecord(BaseModel):
+    project_id: str
     session_id: str
+    handoff_id: str
+    status: str = "ready"
+    created_at: datetime = Field(default_factory=utc_now)
     session_summary: str
     decision_updates: List[str] = Field(default_factory=list)
     task_status_changes: List[str] = Field(default_factory=list)
@@ -112,14 +126,50 @@ class HandoffRecord(BaseModel):
     required_input_files: List[str] = Field(default_factory=list)
     success_criteria: List[str] = Field(default_factory=list)
     risks: List[str] = Field(default_factory=list)
+    review_outcome: Optional[str] = None
+    acceptance_status: Optional[str] = None
+    followup_actions: List[str] = Field(default_factory=list)
 
 
 class ProjectState(BaseModel):
     project_id: str
     created_at: datetime = Field(default_factory=utc_now)
+    project_mode: str = "delivery"
+    attraction_focus: str = "visual_proof"
+    research_slots: List[str] = Field(default_factory=list)
+    governance_gates: List[str] = Field(default_factory=list)
+    execution_priority: List[str] = Field(default_factory=list)
     workflow_graph: WorkflowGraph
     role_catalog: List[RoleInstanceSpec] = Field(default_factory=list)
     task_tree: List[TaskNode] = Field(default_factory=list)
     sessions: List[SessionRecord] = Field(default_factory=list)
     knowledge_items: List[KnowledgeItem] = Field(default_factory=list)
     decisions: List[DecisionRecord] = Field(default_factory=list)
+
+
+class BootstrapRequest(BaseModel):
+    goal: str
+    initial_prompt: str
+    project_name: Optional[str] = None
+
+
+class SessionCreateRequest(BaseModel):
+    project_id: str
+    role_name: str
+    objective: str
+    input_files: List[str] = Field(default_factory=list)
+
+
+class SessionCompleteRequest(BaseModel):
+    session_summary: str
+    decision_updates: List[str] = Field(default_factory=list)
+    task_status_changes: List[str] = Field(default_factory=list)
+    next_role_recommendation: str
+    next_role_reason: str
+    required_input_files: List[str] = Field(default_factory=list)
+    success_criteria: List[str] = Field(default_factory=list)
+    risks: List[str] = Field(default_factory=list)
+    review_outcome: Optional[str] = None
+    acceptance_status: Optional[str] = None
+    followup_actions: List[str] = Field(default_factory=list)
+    transcript_note: Optional[str] = None

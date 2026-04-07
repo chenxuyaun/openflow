@@ -1,8 +1,16 @@
+import os
+from pathlib import Path
+
+import pytest
 from fastapi.testclient import TestClient
 
 from openflow.app import app
+from openflow import service
+from openflow.repository import OpenFlowRepository
 from openflow.service import (
     build_default_project_state,
+    get_project_timeline,
+    load_blueprint_alignment,
     load_decisions,
     load_knowledge_items,
     load_workflow_blueprint,
@@ -10,6 +18,15 @@ from openflow.service import (
 
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def isolated_data_dir(tmp_path: Path) -> None:
+    os.environ["OPENFLOW_DATA_DIR"] = str(tmp_path / "data")
+    service.repository = OpenFlowRepository(service.ROOT_DIR, service.DOCS_DIR)
+    yield
+    os.environ.pop("OPENFLOW_DATA_DIR", None)
+    service.repository = OpenFlowRepository(service.ROOT_DIR, service.DOCS_DIR)
 
 
 def test_health_endpoint() -> None:
@@ -46,6 +63,7 @@ def test_knowledge_endpoint_returns_documents_and_decisions() -> None:
 
     assert body["project_id"] == "openflow-local"
     assert "docs/product_hook.md" in body["documents"]
+    assert "docs/taxonomy.md" in body["documents"]
     assert any(item["decision_id"] == "dec-001" for item in body["decisions"])
 
 
@@ -58,13 +76,348 @@ def test_workflow_endpoint_returns_blueprint_and_roles() -> None:
     assert body["project_id"] == "openflow-local"
     assert body["workflow_blueprint"]["stages"][0]["stage_id"] == "bootstrap"
     assert body["role_catalog"][0]["role_name"] == "Bootstrap Strategist"
+    assert "landing" in body["workflow_blueprint"]["page_flow"]
+
+
+def test_blueprint_endpoint_returns_claim_mappings() -> None:
+    response = client.get("/blueprint")
+
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["project_id"] == "openflow-local"
+    assert "docs/landing_blueprint.md" in body["hook_documents"]
+    assert "docs/demo_flow.md" in body["hook_documents"]
+    assert "docs/taxonomy.md" in body["hook_documents"]
+    assert "opening_frame" in body["demo_sections"]
+    assert any(item["claim_id"] == "claim-001" for item in body["claims"])
+
+
+def test_bootstrap_session_and_handoff_flow() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Build a file-driven role workflow.",
+            "initial_prompt": "Turn this idea into a real OpenFlow project.",
+            "project_name": "Flow Demo",
+        },
+    )
+    assert bootstrap_response.status_code == 200
+    bootstrap_body = bootstrap_response.json()
+    project_id = bootstrap_body["project_id"]
+    session_id = bootstrap_body["session_id"]
+
+    project_response = client.get("/project", params={"project_id": project_id})
+    assert project_response.status_code == 200
+    assert project_response.json()["state"]["project_id"] == project_id
+
+    session_response = client.post(
+        "/sessions",
+        json={
+            "project_id": project_id,
+            "role_name": "Implementation Lead",
+            "objective": "Implement the next project slice.",
+            "input_files": ["projects/project/workflow_graph.json"],
+        },
+    )
+    assert session_response.status_code == 200
+    created_session_id = session_response.json()["session_id"]
+
+    complete_response = client.post(
+        f"/sessions/{created_session_id}/complete",
+        json={
+            "session_summary": "Implemented the requested project slice.",
+            "decision_updates": ["Keep file storage as source of truth."],
+            "task_status_changes": ["implementation-slice=completed"],
+            "next_role_recommendation": "Review Operator",
+            "next_role_reason": "A review pass is needed.",
+            "required_input_files": ["projects/project/session/handoff.json"],
+            "success_criteria": ["Review the implementation evidence."],
+            "risks": ["Review may request replanning."],
+            "review_outcome": "pass",
+            "acceptance_status": "accepted",
+            "followup_actions": ["Advance to review."],
+        },
+    )
+    assert complete_response.status_code == 200
+    handoff_id = complete_response.json()["handoff_id"]
+
+    advance_response = client.post(f"/handoffs/{handoff_id}/advance")
+    assert advance_response.status_code == 200
+    assert advance_response.json()["status"] == "advanced"
+    assert advance_response.json()["session"]["role_name"] == "Review Operator"
+
+    knowledge_response = client.get("/knowledge", params={"project_id": project_id})
+    assert knowledge_response.status_code == 200
+    knowledge_body = knowledge_response.json()
+    assert len(knowledge_body["knowledge_items"]) >= 1
+    assert any(item["source_ref"].endswith("/handoff.json") for item in knowledge_body["knowledge_items"])
+    assert "README.md" in knowledge_body["blueprint_documents"]
+
+    task_response = client.get(f"/projects/{project_id}/tasks")
+    assert task_response.status_code == 200
+    assert "Task Board" in task_response.text
+    assert "Completed" in task_response.text
+
+
+def test_read_only_pages_render_real_project_data() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Render project views from real files.",
+            "initial_prompt": "Create a project so the read-only UI can load it.",
+            "project_name": "UI Demo",
+        },
+    )
+    body = bootstrap_response.json()
+    project_id = body["project_id"]
+    session_id = body["session_id"]
+
+    landing_response = client.get("/")
+    assert landing_response.status_code == 200
+    assert "Every role gets a fresh session" in landing_response.text
+
+    project_response = client.get(f"/projects/{project_id}")
+    assert project_response.status_code == 200
+    assert "UI Demo" in project_response.text
+
+    knowledge_response = client.get(f"/projects/{project_id}/knowledge")
+    assert knowledge_response.status_code == 200
+    assert "Knowledge Center" in knowledge_response.text
+    assert "Blueprint Documents" in knowledge_response.text
+
+    workflow_response = client.get(f"/projects/{project_id}/workflow")
+    assert workflow_response.status_code == 200
+    assert "Bootstrap Strategist" in workflow_response.text
+
+    session_response = client.get(f"/projects/{project_id}/sessions/{session_id}")
+    assert session_response.status_code == 200
+    assert "Session Detail" in session_response.text
 
 
 def test_docs_backed_data_loaders_return_structured_records() -> None:
     knowledge_items = load_knowledge_items()
     decisions = load_decisions()
     blueprint = load_workflow_blueprint()
+    alignment = load_blueprint_alignment()
 
     assert any(item.knowledge_id == "ki-005" for item in knowledge_items)
-    assert any(item.decision_id == "dec-005" for item in decisions)
+    assert any(item.knowledge_id == "ki-007" for item in knowledge_items)
+    assert any(item.knowledge_id == "ki-008" for item in knowledge_items)
+    assert any(item.decision_id == "dec-006" for item in decisions)
+    assert any(item.decision_id == "dec-007" for item in decisions)
     assert "page_flow" in blueprint
+    assert "landing_sections" in blueprint
+    assert "demo_sections" in blueprint
+    assert any(item["claim_id"] == "claim-003" for item in alignment["product_claims"])
+    assert "landing_sections" in alignment["product_claims"][0]["supports"]
+    assert "demo_sections" in alignment["product_claims"][0]["supports"]
+    assert "types" in alignment["product_claims"][0]["supports"]
+
+
+def test_bootstrap_auto_ingests_project_knowledge_items() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Verify automatic project knowledge ingest.",
+            "initial_prompt": "Seed project knowledge from bootstrap artifacts.",
+            "project_name": "Knowledge Seed",
+        },
+    )
+    project_id = bootstrap_response.json()["project_id"]
+
+    knowledge_response = client.get("/knowledge", params={"project_id": project_id})
+    assert knowledge_response.status_code == 200
+    items = knowledge_response.json()["knowledge_items"]
+
+    assert any(item["knowledge_id"] == f"project-meta-{project_id}" for item in items)
+    assert any(item["knowledge_id"] == f"workflow-{project_id}" for item in items)
+    assert any(item["knowledge_id"] == f"task-tree-{project_id}" for item in items)
+
+    project_response = client.get("/project", params={"project_id": project_id})
+    state = project_response.json()["state"]
+    assert state["attraction_focus"] in {"visual_proof", "knowledge_proof", "experience_proof"}
+    assert len(state["research_slots"]) >= 3
+    assert len(state["governance_gates"]) >= 3
+
+
+def test_bootstrap_generation_changes_with_request_shape() -> None:
+    research_bootstrap = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Collect broad research materials and organize them into reusable knowledge.",
+            "initial_prompt": "Need a research-heavy flow that curates sources, records decisions, and keeps file-based memory.",
+            "project_name": "Research Heavy",
+        },
+    )
+    implementation_bootstrap = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Implement a session orchestration runtime with workflow execution.",
+            "initial_prompt": "Need an implementation-heavy project with role handoffs, execution, and review.",
+            "project_name": "Execution Heavy",
+        },
+    )
+
+    research_state = research_bootstrap.json()["state"]
+    implementation_state = implementation_bootstrap.json()["state"]
+
+    research_roles = {item["role_name"] for item in research_state["role_catalog"]}
+    implementation_roles = {item["role_name"] for item in implementation_state["role_catalog"]}
+    research_titles = [item["title"] for item in research_state["task_tree"]]
+    implementation_titles = [item["title"] for item in implementation_state["task_tree"]]
+
+    assert len(research_state["task_tree"]) >= 4
+    assert len(implementation_state["task_tree"]) >= 4
+    assert "Research Curator" in research_roles
+    assert "Implementation Lead" in implementation_roles
+    assert research_roles != implementation_roles
+    assert research_titles != implementation_titles
+    assert any(edge["condition"] == "research-needed" for edge in research_state["workflow_graph"]["edges"])
+    assert any(edge["to_node"] == "review" for edge in implementation_state["workflow_graph"]["edges"])
+
+
+def test_form_driven_project_flow_and_transcript_summary() -> None:
+    landing_response = client.post(
+        "/",
+        data={
+            "project_name": "Form Project",
+            "goal": "Drive the project from forms.",
+            "initial_prompt": "Create an operable project from the landing page.",
+        },
+        follow_redirects=False,
+    )
+    assert landing_response.status_code == 303
+    project_url = landing_response.headers["location"]
+    project_id = project_url.rsplit("/", 1)[-1]
+
+    session_create_response = client.post(
+        f"/projects/{project_id}/sessions",
+        data={
+            "role_name": "Implementation Lead",
+            "objective": "Implement through the writable UI.",
+            "input_files": f"projects/{project_id}/workflow_graph.json",
+        },
+        follow_redirects=False,
+    )
+    assert session_create_response.status_code == 303
+    session_url = session_create_response.headers["location"]
+    session_id = session_url.rsplit("/", 1)[-1]
+
+    complete_response = client.post(
+        f"/projects/{project_id}/sessions/{session_id}/complete",
+        data={
+            "session_summary": "Completed the writable UI session.",
+            "next_role_recommendation": "Review Operator",
+            "next_role_reason": "Review the submitted changes.",
+            "required_input_files": f"projects/{project_id}/sessions/{session_id}/handoff.json",
+            "success_criteria": "Check the implementation",
+            "risks": "May need replanning",
+            "task_status_changes": "implementation-slice=completed",
+            "review_outcome": "pass",
+            "acceptance_status": "accepted",
+            "followup_actions": "Advance to review",
+            "transcript_note": "Implemented the session through page forms.",
+        },
+        follow_redirects=False,
+    )
+    assert complete_response.status_code == 303
+
+    knowledge_response = client.get(f"/projects/{project_id}/knowledge")
+    assert knowledge_response.status_code == 200
+    assert "Evolution Feed" in knowledge_response.text
+    assert "Transcript summary" in knowledge_response.text or "Tasks completed:" in knowledge_response.text
+
+    task_board_response = client.get(f"/projects/{project_id}/tasks")
+    assert task_board_response.status_code == 200
+    assert "Task Board" in task_board_response.text
+
+
+def test_transcript_summary_becomes_structured_knowledge() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Create structured session knowledge.",
+            "initial_prompt": "Bootstrap a project that turns transcripts into reusable execution records.",
+            "project_name": "Structured Transcript",
+        },
+    )
+    session_id = bootstrap_response.json()["session_id"]
+    project_id = bootstrap_response.json()["project_id"]
+
+    complete_response = client.post(
+        f"/sessions/{session_id}/complete",
+        json={
+            "session_summary": "Bootstrap analysis finished.",
+            "next_role_recommendation": "System Architect",
+            "next_role_reason": "Lock the execution contracts.",
+            "transcript_note": "Implemented the bootstrap map. Keep file memory as the source of truth. Risk: research coverage is still shallow. Next review should confirm workflow edges.",
+        },
+    )
+    assert complete_response.status_code == 200
+
+    knowledge_response = client.get("/knowledge", params={"project_id": project_id})
+    items = knowledge_response.json()["knowledge_items"]
+    transcript_item = next(item for item in items if item["knowledge_id"] == f"transcript-summary-{session_id}")
+
+    assert "Tasks completed:" in transcript_item["summary"]
+    assert "Key decisions:" in transcript_item["summary"]
+    assert "Risks or blockers:" in transcript_item["summary"]
+    assert "Recommended next step:" in transcript_item["summary"]
+
+
+def test_timeline_includes_git_and_handoff_events() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Build a timeline-rich project.",
+            "initial_prompt": "Create timeline events from project activity.",
+            "project_name": "Timeline Demo",
+        },
+    )
+    project_id = bootstrap_response.json()["project_id"]
+    session_id = bootstrap_response.json()["session_id"]
+
+    complete_response = client.post(
+        f"/sessions/{session_id}/complete",
+        json={
+            "session_summary": "Bootstrap session completed.",
+            "next_role_recommendation": "System Architect",
+            "next_role_reason": "Architecture review is required.",
+            "transcript_note": "Captured a note for the timeline.",
+        },
+    )
+    handoff_id = complete_response.json()["handoff_id"]
+
+    timeline = get_project_timeline(project_id)
+    assert any(item["event_type"] == "git_commit_ingested" for item in timeline["events"])
+    assert any(item["event_type"] == "handoff_written" for item in timeline["events"])
+
+    project_page = client.get(f"/projects/{project_id}")
+    assert project_page.status_code == 200
+    assert "Project Timeline" in project_page.text
+
+    advance_response = client.post(
+        f"/projects/{project_id}/handoffs/{handoff_id}/advance",
+        follow_redirects=False,
+    )
+    assert advance_response.status_code == 303
+    assert "handoff_status" in advance_response.headers["location"]
+
+
+def test_project_dashboard_shows_governance_and_task_board_link() -> None:
+    bootstrap_response = client.post(
+        "/projects/bootstrap",
+        json={
+            "goal": "Create a compelling, visible workflow system.",
+            "initial_prompt": "Bootstrap roles, governance, and research-backed project memory.",
+            "project_name": "Governance Demo",
+        },
+    )
+    project_id = bootstrap_response.json()["project_id"]
+
+    project_page = client.get(f"/projects/{project_id}")
+    assert project_page.status_code == 200
+    assert "Task Board" in project_page.text
+    assert "Governance Gates" in project_page.text
+    assert "Execution Priorities" in project_page.text

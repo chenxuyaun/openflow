@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <div class="eyebrow">Project Dashboard</div>
+  <h1>{{ summary.project.project_name }}</h1>
+  <p>{{ summary.project.goal }}</p>
+  <p class="muted">Project ID: <code>{{ project_id }}</code></p>
+  <div class="statline">
+    <div class="stat">Mode: {{ summary.state.project_mode }}</div>
+    <div class="stat">Attraction: {{ summary.state.attraction_focus }}</div>
+    <div class="stat">Next role: {{ summary.next_role or "n/a" }}</div>
+    <div class="stat">Review: {{ summary.governance.latest_review }}</div>
+  </div>
+  <p>
+    <a href="/projects/{{ project_id }}/knowledge">Knowledge Center</a> |
+    <a href="/projects/{{ project_id }}/workflow">Workflow Graph</a> |
+    <a href="/projects/{{ project_id }}/tasks">Task Board</a>
+  </p>
+  {% if handoff_status == "waiting_confirmation" %}
+  <p class="muted">Confirm gate reached. This handoff is waiting for confirmation.</p>
+  {% endif %}
+  {% if summary.governance.confirm_waiting %}
+  <p class="muted">Governance status: the recommended next role is behind a confirm gate.</p>
+  {% endif %}
+</section>
+
+<section class="grid">
+  <article class="panel">
+    <h2>Execution Priorities</h2>
+    {% for item in summary.state.execution_priority %}
+    <div class="list-card">
+      <strong>{{ item }}</strong>
+    </div>
+    {% endfor %}
+    <h2>Research Slots</h2>
+    {% for item in summary.state.research_slots %}
+    <span class="tag">{{ item }}</span>
+    {% endfor %}
+  </article>
+  <article class="panel">
+    <h2>Latest Session</h2>
+    {% if summary.latest_session %}
+    <div class="list-card">
+      <strong>{{ summary.latest_session.role_name }}</strong>
+      <p class="muted">{{ summary.latest_session.status }}</p>
+      <p><a href="/projects/{{ project_id }}/sessions/{{ summary.latest_session.session_id }}">Open session detail</a></p>
+    </div>
+    {% else %}
+    <p class="muted">No session exists yet.</p>
+    {% endif %}
+    <h2>Latest Handoff</h2>
+    {% if summary.latest_handoff %}
+    <div class="list-card">
+      <strong>{{ summary.latest_handoff.next_role_recommendation }}</strong>
+      <p class="muted">{{ summary.latest_handoff.next_role_reason }}</p>
+      <p class="muted">Acceptance: {{ summary.latest_handoff.acceptance_status or "not_set" }} · Review: {{ summary.latest_handoff.review_outcome or "not_set" }}</p>
+      <form method="post" action="/projects/{{ project_id }}/handoffs/{{ summary.latest_handoff.handoff_id }}/advance">
+        <p><button type="submit">Advance Handoff</button></p>
+      </form>
+    </div>
+    {% else %}
+    <p class="muted">No handoff has been written yet.</p>
+    {% endif %}
+  </article>
+</section>
+
+<section class="panel">
+  <h2>Task Snapshot</h2>
+  {% for task in summary.state.task_tree %}
+  <div class="list-card">
+    <strong>{{ task.title }}</strong>
+    <p class="muted">{{ task.status }} · {{ task.owner_role }} · Priority {{ task.priority }}</p>
+    {% if task.depends_on %}
+    <p class="muted">Depends on: {{ task.depends_on|join(", ") }}</p>
+    {% endif %}
+    {% if task.blocked_reason %}
+    <p>Blocked: {{ task.blocked_reason }}</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+</section>
+
+<section class="panel">
+  <h2>Project Timeline</h2>
+  {% for event in timeline %}
+  <div class="list-card">
+    <strong>{{ event.title }}</strong>
+    <p>{{ event.summary }}</p>
+    <p class="muted">{{ event.event_type }} · {{ event.timestamp }}</p>
+    <p><a href="{{ event.target_url }}">Open</a></p>
+  </div>
+  {% endfor %}
+</section>
+
+<section class="panel">
+  <h2>Governance Gates</h2>
+  {% for gate in summary.governance.gates %}
+  <div class="list-card">
+    <strong>{{ gate }}</strong>
+  </div>
+  {% endfor %}
+</section>
+
+<section class="panel">
+  <h2>Create Session</h2>
+  <form method="post" action="/projects/{{ project_id }}/sessions">
+    <p><label>Role name<br /><input type="text" name="role_name" style="width:100%" value="Implementation Lead" /></label></p>
+    <p><label>Objective<br /><textarea name="objective" style="width:100%;min-height:100px">Implement the next project slice.</textarea></label></p>
+    <p><label>Input files<br /><textarea name="input_files" style="width:100%;min-height:90px">projects/{{ project_id }}/workflow_graph.json</textarea></label></p>
+    <p><button type="submit">Create Session</button></p>
+  </form>
+</section>
+{% endblock %}

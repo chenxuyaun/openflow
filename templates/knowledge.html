@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <div class="eyebrow">Knowledge Center</div>
+  <h1>Knowledge for {{ project_id }}</h1>
+  <p class="muted">Blueprint docs, project knowledge, decisions, and files are visible here.</p>
+</section>
+
+<section class="grid">
+  <article class="panel">
+    <h2>Evolution Feed</h2>
+    {% for item in payload.evolution_feed %}
+    <div class="list-card">
+      <strong>{{ item.title }}</strong>
+      <p>{{ item.summary }}</p>
+      <p class="muted">{{ item.generated_at }} · {{ item.source_ref }}</p>
+    </div>
+    {% endfor %}
+  </article>
+  <article class="panel">
+    <h2>Project Knowledge Items</h2>
+    {% for item in payload.knowledge_items %}
+    <div class="list-card">
+      <strong>{{ item.title }}</strong>
+      <p class="muted">{{ item.source_type }} · {{ item.source_ref }}</p>
+      <p>{{ item.summary }}</p>
+      <p class="muted">Themes: {{ item.themes|join(", ") if item.themes else "none" }}</p>
+      <p class="muted">Decisions: {{ item.decision_ids|join(", ") if item.decision_ids else "none" }}</p>
+      <p class="muted">Session: {{ item.session_id or "n/a" }} · Handoff: {{ item.handoff_id or "n/a" }}</p>
+    </div>
+    {% endfor %}
+  </article>
+  <article class="panel">
+    <h2>Decisions</h2>
+    {% for item in payload.decisions %}
+    <div class="list-card">
+      <strong>{{ item.title }}</strong>
+      <p class="muted">{{ item.status }}</p>
+    </div>
+    {% endfor %}
+  </article>
+</section>
+
+<section class="panel">
+  <h2>Blueprint Documents</h2>
+  <ul>
+    {% for path in payload.blueprint_documents %}
+    <li><code>{{ path }}</code></li>
+    {% endfor %}
+  </ul>
+</section>
+
+<section class="panel">
+  <h2>Project Files</h2>
+  <ul>
+    {% for path in payload.project_files %}
+    <li><code>{{ path }}</code></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}

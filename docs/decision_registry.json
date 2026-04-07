@@ -38,5 +38,21 @@
     "rationale": "The first research pass must be full-spectrum and cite external patterns explicitly.",
     "sources": ["chat-history", "docs/research_master_outline.md"],
     "themes": ["knowledge_indexing", "handoff_governance"]
+  },
+  {
+    "decision_id": "dec-006",
+    "title": "The public landing story must be derived from the same blueprint used for implementation",
+    "status": "accepted",
+    "rationale": "Product attraction should not diverge from the actual workflow, page flow, and role system.",
+    "sources": ["docs/product_hook.md", "docs/landing_blueprint.md", "chat-history"],
+    "themes": ["landing_conversion", "product_narrative", "workflow_governance"]
+  },
+  {
+    "decision_id": "dec-007",
+    "title": "The demo narrative must be locked to the same taxonomy and workflow as the product blueprint",
+    "status": "accepted",
+    "rationale": "The walkthrough should explain the real product model rather than a separate presentation-only story.",
+    "sources": ["docs/demo_flow.md", "docs/taxonomy.md", "docs/master_prd.md"],
+    "themes": ["demo_conversion", "landing_conversion", "workflow_governance"]
   }
 ]

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ title }}</title>
+    <style>
+      :root {
+        --bg: #f6f1e8;
+        --surface: #fffaf2;
+        --ink: #17202a;
+        --muted: #54606d;
+        --accent: #c8562a;
+        --line: #d7c5ae;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: Georgia, "Times New Roman", serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(200,86,42,0.16), transparent 28%),
+          linear-gradient(180deg, #fbf6ee 0%, var(--bg) 100%);
+      }
+      a { color: var(--accent); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      header, main { max-width: 1080px; margin: 0 auto; padding: 24px; }
+      header { display: flex; justify-content: space-between; align-items: center; }
+      nav { display: flex; gap: 14px; flex-wrap: wrap; }
+      .hero, .panel {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 22px;
+        box-shadow: 0 12px 32px rgba(23,32,42,0.06);
+      }
+      .hero { margin-bottom: 18px; }
+      .grid {
+        display: grid;
+        gap: 18px;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      }
+      .eyebrow { color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; font-size: 12px; }
+      h1, h2, h3 { margin-top: 0; }
+      ul { padding-left: 18px; }
+      .muted { color: var(--muted); }
+      .tag {
+        display: inline-block;
+        margin: 0 8px 8px 0;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: #fff;
+        font-size: 14px;
+      }
+      .list-card { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
+      .statline { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+      .stat { padding: 8px 10px; border-radius: 12px; background: #fff; border: 1px solid var(--line); }
+      code { background: rgba(23,32,42,0.06); padding: 2px 6px; border-radius: 6px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <strong><a href="/">OpenFlow</a></strong>
+      <nav>
+        <a href="/blueprint">Blueprint API</a>
+      </nav>
+    </header>
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+  </body>
+</html>
