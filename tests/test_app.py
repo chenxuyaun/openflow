@@ -175,17 +175,18 @@ def test_read_only_pages_render_real_project_data() -> None:
 
     landing_response = client.get("/")
     assert landing_response.status_code == 200
-    assert "Complex work keeps moving" in landing_response.text
-    assert "Messy Work In" in landing_response.text
-    assert "Why This Is Different From Ordinary Chat Threads" in landing_response.text
-    assert "Progress does not get lost" in landing_response.text
+    assert "Every new role can start fresh without losing the work." in landing_response.text
+    assert "What You Bring In" in landing_response.text
+    assert "Why This Works Better Than Ordinary Chat Threads" in landing_response.text
+    assert "Project memory stays in files" in landing_response.text
+    assert "What You See In The Workspace" in landing_response.text
 
     welcome_response = client.get(f"/projects/{project_id}/welcome")
     assert welcome_response.status_code == 200
     assert "Workspace Ready" in welcome_response.text
-    assert "Open Workspace Overview" in welcome_response.text
+    assert "Open Workspace" in welcome_response.text
     assert "Suggested Next Step" in welcome_response.text
-    assert "Start First Work Step" in welcome_response.text or "Start Suggested Next Step" in welcome_response.text
+    assert "Continue Recommended Step" in welcome_response.text or "Start First Work Step" in welcome_response.text
 
     project_response = client.get(f"/projects/{project_id}")
     assert project_response.status_code == 200
@@ -313,7 +314,7 @@ def test_form_driven_project_flow_and_transcript_summary() -> None:
     welcome_response = client.get(project_url)
     assert welcome_response.status_code == 200
     assert "Workspace Ready" in welcome_response.text
-    assert "Start First Work Step" in welcome_response.text or "Start Suggested Next Step" in welcome_response.text
+    assert "Start First Work Step" in welcome_response.text or "Continue Recommended Step" in welcome_response.text
 
     welcome_start_response = client.post(
         f"/projects/{project_id}/sessions",
@@ -694,7 +695,8 @@ def test_welcome_page_handles_confirm_gated_next_step() -> None:
 
     welcome_response = client.get(f"/projects/{project_id}/welcome")
     assert welcome_response.status_code == 200
-    assert "needs an advanced review before it can start" in welcome_response.text
+    assert "needs review before it can continue" in welcome_response.text
+    assert "Open Workspace" in welcome_response.text
 
 
 def test_welcome_page_can_start_first_work_step_when_no_next_step_exists() -> None:

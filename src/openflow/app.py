@@ -66,10 +66,10 @@ def landing_page(request: Request):
             "title": "OpenFlow",
             "blueprint": blueprint,
             "proof_points": [
-                "Progress does not get lost",
-                "Every fresh session can continue from files",
-                "Materials stay organized",
-                "The next step stays visible",
+                "Every role starts fresh",
+                "Project memory stays in files",
+                "Progress remains visible",
+                "The next step stays clear",
             ],
         },
     )
