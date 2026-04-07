@@ -1,153 +1,137 @@
-# OpenFlow V1 Product Blueprint
+# OpenFlow Alpha Product Blueprint
 
 ## 1. Product Definition
 
-OpenFlow is a role-driven workflow system where each role operates in a fresh
-session. Progress is preserved through files, indexes, decisions, and handoff
-records rather than through persistent runtime chat context.
+OpenFlow is an AI collaboration workspace for complex work that continues
+through fresh sessions. Progress is preserved through files, materials,
+decisions, handoffs, and timelines instead of hidden runtime chat context.
 
 ## 2. Product Narrative
 
-OpenFlow exists to solve a specific failure mode in AI-driven projects:
-important work disappears into chat context, role changes lose precision, and
-teams cannot audit why the system chose the next action. The product answer is
-not a larger context window. The answer is to make project memory explicit and
-make role transitions structured.
+The core failure mode is not limited to coding: once an AI-assisted project
+gets large enough, continuity breaks. Users lose reasoning, specialists restart
+from partial summaries, and nobody can clearly explain why the next step was
+chosen.
 
-The user-facing attraction is that OpenFlow turns a vague goal into visible
-project structure: knowledge items, role graph, task tree, and next-step
-handoffs. The team-facing attraction is that every session can be reviewed and
-resumed from files.
+OpenFlow addresses that by combining:
 
-## 3. Core Value
+- workspace entry from a natural-language goal
+- structured role and work-step decomposition
+- visible handoffs and review flow
+- durable materials, research, and decisions
+- recoverable state from files
 
-- Eliminate hidden context drift by treating files as the source of truth
-- Turn every answer into a structured handoff for the next role
-- Make role changes auditable through workflow graphs and session inputs
-- Keep project knowledge reusable for development, operations, and creation
+## 3. Product Position
+
+OpenFlow should be positioned as an AI collaboration workspace with a dual
+interface model:
+
+- simple layer for ordinary users:
+  - workspace
+  - materials
+  - work steps
+  - work board
+  - next step
+- advanced layer for governance-oriented users:
+  - workflow graph
+  - decision registry
+  - confirm gates
+  - review actions
+  - handoff chain
 
 ## 4. Target Users
 
-- Solo builders managing long-running projects with AI
-- Small teams that need auditable agent collaboration
-- Operators who need planning, execution, review, and reprioritization loops
+- Individuals coordinating long-running research, writing, planning, or build work
+- Small teams using AI roles but needing continuity and governance
+- Operators who want both simple progress views and deeper auditability
 
 ## 5. Primary Scenarios
 
-### Scenario A: Product Build
+### Scenario A: Coordinated Delivery
 
-1. The user describes a product idea and constraints
-2. A bootstrap role creates workflow, roles, and task tree
-3. Specialist roles work in fresh sessions using file inputs only
-4. Every session emits a handoff for the next role
-5. The project can be resumed without relying on hidden context
+1. A user describes what they want to finish
+2. OpenFlow infers a work type and collaboration structure
+3. Work steps are created across planning, execution, and review
+4. Handoffs advance the work without losing continuity
 
-### Scenario B: Workflow Repair
+### Scenario B: Research And Synthesis
 
-1. A review role reads project files and detects blocked progress
-2. It updates decision records and suggests role changes
-3. A new specialist session is created to address the issue
+1. A user starts from scattered notes or source materials
+2. Research packs are ingested and split into raw and synthesized layers
+3. Insights are linked to decisions and next actions
+4. The project remains understandable after interruptions
+
+### Scenario C: Review And Replanning
+
+1. A confirm gate blocks the next step
+2. A reviewer approves, requests changes, or sends the flow back to replanning
+3. Task and timeline state update with visible reasons
 
 ## 6. Core System
 
-### Bootstrap
+### Workspace Bootstrap
 
-- Read the first request and existing project files
-- Produce `workflow_graph`, `role_catalog`, and `task_tree`
+- Input: goal + context
+- Output: project mode, user-facing roles, workflow graph, task tree, work priorities
 
-### Knowledge Base
+### Work Step Engine
 
-- Store transcripts, decisions, docs, and references as indexed items
-- Let each session declare which files it consumed
-- Normalize internal and external materials into a shared research corpus
+- Every role step is a fresh session
+- Every step starts from declared materials
+- Every step writes a handoff
 
-### Session Engine
+### Governance Layer
 
-- Create a new isolated session per role
-- Never rely on hidden prior chat state
+- Review actions:
+  - approve
+  - changes_requested
+  - replan_required
+- Confirm gates block advancement until a review outcome exists
 
-### Handoff Engine
+### Materials And Decisions
 
-- Require structured output for every completed session
-- Decide whether to auto-advance or require confirmation
+- Knowledge items store project and research memory
+- Research packs preserve both raw sources and synthesized insights
+- Decisions can be updated and shown with supporting materials
 
-### Review Loop
+### Explanation Layer
 
-- Allow replanning, conflict detection, and recovery from failed paths
+- Dashboard explains why the project is in its current state
+- Timeline explains why each event happened
+- Task board explains governance effects on work status
 
-## 7. Knowledge And Research System
+## 7. UX Surfaces
 
-- Research sources include chats, repo state, git history, internal docs,
-  competitor references, and workflow methodology references
-- Every source becomes a `KnowledgeItem` with themes, reliability, relevance,
-  and open questions
-- Product decisions cite knowledge items and remain visible in a decision
-  registry until resolved
-- Sessions consume files and indexes, not hidden conversation memory
+- Landing / workspace entry
+- Workspace overview
+- Materials and insights
+- Decision registry
+- Advanced workflow
+- Work board
+- Work step detail
 
-## 8. UX Surfaces
+## 8. Alpha Scope
 
-- Landing / first impression
-- Project dashboard
-- Knowledge center
-- Workflow graph
-- Session detail
-- Task board
+- Natural-language workspace entry
+- Dynamic project type and user-facing role mapping
+- Work step creation and completion
+- Handoff and review loop
+- Research pack ingest and batch ingest
+- Decision registry with status updates
+- Explainable project timeline
 
-## 9. Workflow And Page Flow
+## 9. Alpha Non-Goals
 
-1. Landing explains the problem, mechanism, and first-use promise
-2. User starts a project bootstrap request
-3. Bootstrap role creates workflow, role catalog, task tree, and research map
-4. Project dashboard shows current state and next role
-5. Knowledge center exposes source items, decisions, and unresolved questions
-6. Session detail shows declared inputs, outputs, and handoff
-7. Workflow graph shows the current stage, auto-advance paths, and confirm gates
-8. Task board shows ownership, dependencies, and blocked work
-
-## 10. Demo Flow
-
-1. Start from the landing promise and failure mode
-2. Show bootstrap turning a goal into visible workflow artifacts
-3. Show project dashboard and workflow graph as the first transformation
-4. Show session detail as proof of isolated, file-driven execution
-5. Show knowledge center as proof of auditability and continuity
-6. Show confirm gate and review loop as governance
-7. End on the V1 promise and next-step call to action
-
-## 11. API Skeleton
-
-- `POST /projects/bootstrap`
-- `GET /project`
-- `GET /knowledge`
-- `GET /workflow`
-- `POST /sessions`
-- `POST /sessions/{id}/complete`
-- `POST /handoffs/{id}/advance`
-
-## 12. Core Types
-
-- `KnowledgeItem`
-- `DecisionRecord`
-- `WorkflowGraph`
-- `RoleInstanceSpec`
-- `TaskNode`
-- `SessionRecord`
-- `HandoffRecord`
-- `ProjectState`
-
-## 13. V1 Non-Goals
-
-- Fully autonomous external tool execution
 - Realtime multiplayer editing
-- Heavy vector infrastructure as a requirement for first release
+- Fully autonomous external execution
+- Heavy vector or retrieval infrastructure as a first requirement
+- Deep per-vertical customization for every possible domain
 
-## 14. Acceptance Criteria
+## 10. Acceptance Criteria
 
-- A new project can be bootstrapped into roles and tasks
-- Each role session is isolated and file-driven
-- Knowledge and progress are reconstructable from disk artifacts
-- Workflow transitions are inspectable and reviewable
-- Product narrative, research corpus, workflow graph, and API contract remain aligned
-- Landing narrative can be derived directly from the product hook and workflow blueprint
-- Demo flow can be derived directly from the same blueprint package without inventing new concepts
+- A user can start a workspace from an ordinary goal statement
+- The generated project exposes both simple and advanced layers
+- A work step can be completed, reviewed, and advanced
+- Materials, decisions, and timeline remain linked
+- The product can be explained as a general collaboration workspace, not only a developer system
+- Documentation and product behavior stay aligned

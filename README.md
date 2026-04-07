@@ -1,27 +1,41 @@
 # OpenFlow
 
-OpenFlow is a file-driven workflow runtime for role-based AI delivery. Every
-role runs in a fresh session. Previous chats are not implicit context; they are
-turned into files, handoffs, knowledge items, and indexed project records that
-the next role can inspect explicitly.
+OpenFlow is an AI collaboration workspace for long-running work that should not
+break when roles, sessions, or time windows change. Each role starts in a fresh
+session, while progress continues through files, handoffs, knowledge items,
+decisions, and timeline records instead of hidden chat context.
 
-## Current Scope
+## Alpha Scope
 
 - FastAPI app with JSON APIs and server-rendered Jinja pages
-- Project bootstrap from `goal + initial_prompt`
-- Dynamic role catalog, task tree, and workflow graph generation
-- File-backed session storage with SQLite indexing
-- Session completion and handoff advancement
-- Knowledge center fed by docs, project artifacts, transcript summaries, and git
-- Project timeline that surfaces bootstrap, sessions, handoffs, knowledge ingest,
-  and git evolution
+- Natural-language workspace entry from `goal + initial_prompt`
+- Dynamic role catalog, task tree, workflow graph, and user-facing role mapping
+- File-backed project memory with SQLite indexing
+- Session completion, handoff advancement, and confirm-gated review actions
+- Knowledge center with research pack ingest, batch ingest, and decision linkage
+- Decision registry with status updates
+- Project timeline with `because` explanations
+- Dual-layer UX:
+  - default layer uses ordinary work language
+  - advanced layer exposes workflow, handoff, governance, and decision surfaces
 
 ## Product Model
 
 - Every role is a new session.
 - Durable memory lives in files, not runtime chat context.
-- Handoffs carry the minimum structured package needed for the next role.
-- Knowledge items and timeline events make project evolution inspectable.
+- Handoffs move work between fresh sessions.
+- Knowledge and decisions remain visible and reusable.
+- Users can stay in simple workspace language or open advanced governance views.
+
+## Main Surfaces
+
+- Landing / workspace entry
+- Workspace overview
+- Materials and insights
+- Decision registry
+- Advanced workflow
+- Work board
+- Work step detail
 
 ## Project Layout
 
@@ -36,7 +50,9 @@ templates/
   landing.html
   project.html
   knowledge.html
+  decisions.html
   workflow.html
+  tasks.html
   session.html
 docs/
   product_hook.md
@@ -45,6 +61,7 @@ docs/
   demo_flow.md
   master_prd.md
   research_master_outline.md
+  alpha_release_checklist.md
   knowledge_index.json
   decision_registry.json
   workflow_blueprint.json
@@ -52,6 +69,17 @@ docs/
 tests/
   test_app.py
 ```
+
+## Key APIs
+
+- `POST /projects/bootstrap`
+- `POST /sessions`
+- `POST /sessions/{session_id}/complete`
+- `POST /handoffs/{handoff_id}/advance`
+- `POST /handoffs/{handoff_id}/review`
+- `POST /research-packs`
+- `POST /research-packs/batch`
+- `POST /projects/{project_id}/decisions/{decision_id}`
 
 ## Run
 
@@ -62,12 +90,13 @@ python -m uvicorn openflow.app:app --app-dir src --reload
 ## Verify
 
 ```powershell
-python -m pytest -q
 python -m py_compile src/openflow/app.py src/openflow/models.py src/openflow/service.py src/openflow/repository.py
+python -m pytest -q
 ```
 
-## Next Slice
+## Alpha Focus
 
-- Enrich request-driven planning with deeper dependency and risk modeling
-- Expand transcript and handoff synthesis into more explicit decision/task state
-- Add richer approval workflows for confirm-gated stages
+- Stable workspace entry and core collaboration loop
+- Clear next-step guidance and recoverable project memory
+- Explainable governance through reviews, decisions, and timelines
+- Usable both as a simple work workspace and as an advanced coordination system

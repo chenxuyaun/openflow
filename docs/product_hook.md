@@ -2,80 +2,96 @@
 
 ## One-Line Definition
 
-OpenFlow is a project operating system where every AI role works in a fresh
-session, yet nothing is lost because the project advances through files,
-decisions, workflow graphs, and structured handoffs.
+OpenFlow is an AI collaboration workspace that keeps complex work moving across
+fresh sessions by turning progress into visible materials, decisions, handoffs,
+and next-step guidance.
 
 ## The Problem
 
-Long-running AI work breaks down when progress depends on hidden chat context.
-Ideas drift, implementation details get lost, and new specialist roles start
-from incomplete summaries. Teams and solo builders both end up rebuilding
-context manually.
+Long-running AI work falls apart when progress depends on hidden conversation
+state. A new role, a delayed restart, or a shifted objective forces users to
+reconstruct the project manually.
+
+This is not only a development problem. The same breakdown appears in research,
+writing, planning, delivery, and review work.
 
 ## Why This Product Exists
 
-OpenFlow replaces hidden context with auditable project memory:
+OpenFlow replaces hidden context with durable project memory:
 
-- every role gets a new session
-- every session reads explicit files
-- every result becomes a structured handoff
-- every project state can be reconstructed from disk
+- each role starts in a fresh session
+- each step reads saved materials instead of inherited chat state
+- each result becomes a handoff and a visible next step
+- each project state can be reconstructed from files and records
 
-This makes planning, development, review, and creative work durable instead of
-fragile.
+The product value is not a larger context window. The product value is durable
+continuity.
 
-## Why It Is Not Just Another Chat Tool
+## Product Position
 
-- Chat tools preserve history, but history becomes noise over time
-- Agent tools automate steps, but often hide why work progressed
-- Knowledge tools store notes, but do not drive the next role and next action
+OpenFlow should be understood as an AI collaboration workspace, not as a
+developer-only workflow engine.
 
-OpenFlow combines all three: conversation capture, project memory, and
-role-driven execution.
+It supports a simple front layer:
 
-## End-to-End Story
+- what are we trying to finish
+- what materials do we have
+- what is happening now
+- what should happen next
 
-1. A user describes a product or creative goal.
-2. A bootstrap role analyzes the request and existing files.
-3. OpenFlow creates a workflow graph, a role catalog, and a task tree.
-4. A specialist role starts in a new session and reads only the declared files.
-5. The role produces output and a structured handoff for the next role.
-6. A review or architecture gate can stop auto-advance when risk is high.
-7. The project resumes later without depending on hidden runtime context.
+And it supports an advanced governance layer:
+
+- workflow graph
+- handoff chain
+- decision registry
+- confirm gates
+- review and replanning
 
 ## First-Use Attraction
 
-The first compelling experience is simple: a user sees their messy idea turned
-into a visible workflow, a knowledge base, and a clear next role instead of yet
-another long conversation thread.
+The first compelling moment is when a user describes a complex goal and sees it
+turned into:
+
+- a work type
+- a set of role responsibilities
+- a visible work board
+- saved materials and insights
+- a clear next step
+
+This should feel useful to someone planning a project, running research,
+writing a document, or building a product.
 
 ## Why Teams Stay
 
-The same mechanism that attracts a user on day one is what keeps a team aligned
-later: every role can prove what it read, what it changed, and why the next
-role should take over.
+The same mechanism that helps a new user on day one is what keeps longer
+projects coherent later:
 
-## Promise For Teams And Builders
+- work can pause and resume
+- roles can change without losing context
+- decisions stay attached to evidence
+- governance stays visible instead of implicit
 
-- Fewer lost decisions
-- Clearer role responsibility
-- Easier recovery after interruptions
-- Reusable knowledge for development, operations, and creation
+## Alpha Experience Promise
 
-## V1 Experience Promise
+The Alpha release should let a user:
 
-In the first release, OpenFlow should let a user bootstrap a project, inspect
-its knowledge base, review the workflow graph, open a role session, and see the
-handoff that drives the next role.
+- start a workspace from a natural-language goal
+- inspect the generated work structure
+- follow a work step through handoff and review
+- see materials, decisions, and timelines remain connected
+- open advanced workflow and governance views when needed
 
 ## Direct Conversion To Landing
 
-This document is the source for the landing page hero, problem statement,
-workflow preview, and V1 promise. The landing page should not introduce a new
-story that conflicts with this hook.
+The landing page should frame OpenFlow as a workspace for coordinated progress,
+not only as an engineering workflow system.
 
 ## Direct Conversion To Demo
 
-This hook also anchors the demo sequence: opening promise, problem framing,
-visible workflow transformation, isolated session proof, and closing V1 promise.
+The demo should show:
+
+1. a messy goal
+2. automatic structuring into coordinated work
+3. a fresh work step
+4. a handoff and review moment
+5. visible continuity through materials, decisions, and timeline
